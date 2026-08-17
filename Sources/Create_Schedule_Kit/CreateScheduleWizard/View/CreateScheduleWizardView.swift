@@ -15,10 +15,10 @@ struct CreateScheduleWizardView: View {
     @StateObject private var viewModel: CreateScheduleWizardViewModel
     private let router: AnyRouter
 
-    init(router: AnyRouter, onFinish: ((CreateScheduleKitEvent) -> Void)? = nil) {
+    init(router: AnyRouter, mode: WizardMode = .create, onFinish: ((CreateScheduleKitEvent) -> Void)? = nil) {
         self.router = router
         _viewModel = StateObject(
-            wrappedValue: CreateScheduleWizardViewModel(router: router, onFinish: onFinish)
+            wrappedValue: CreateScheduleWizardViewModel(router: router, mode: mode, onFinish: onFinish)
         )
     }
 
@@ -28,11 +28,11 @@ struct CreateScheduleWizardView: View {
                 .padding(.horizontal)
                 .padding(.vertical, 14)
                 .background(Color(.systemBackground))
-            
+
             stepContent
         }
         .background(Color.scheduleBackground.ignoresSafeArea())
-        .navigationTitle("Create Schedule")
+        .navigationTitle(viewModel.navTitle)
         .navigationBarTitleDisplayMode(.inline)
         .loadingOverlayViewPkg(state: viewModel.loadingState)
         .toastViewPkg(toast: $viewModel.toast)
@@ -40,31 +40,40 @@ struct CreateScheduleWizardView: View {
 
     @ViewBuilder
     private var stepContent: some View {
-        switch viewModel.currentStep {
-        case 1:
-            ScheduleBasicDetailsView(
-                router: router,
-                draft: viewModel.draft,
-                onBack: viewModel.goBack,
-                onContinue: viewModel.goNext
-            )
-        case 2:
-            ScheduleLogisticsView(
-                router: router,
-                draft: viewModel.draft,
-                onBack: viewModel.goBack,
-                onContinue: viewModel.goNext
-            )
-        case 3:
-            ScheduleFeedbackView(
-                router: router,
-                draft: viewModel.draft,
-                onBack: viewModel.goBack,
-                onContinue: viewModel.goNext,
-                onSkipCreate: viewModel.createSchedule
-            )
-        default:
-            EmptyView()
+        // Steps copy the draft in their view-model inits, so in edit mode nothing
+        // renders until the fetched schedule has hydrated the draft.
+        if !viewModel.isHydrated {
+            Color.clear
+        } else {
+            switch viewModel.currentStep {
+            case 1:
+                ScheduleBasicDetailsView(
+                    router: router,
+                    draft: viewModel.draft,
+                    isEditMode: viewModel.mode.isEdit,
+                    onBack: viewModel.goBack,
+                    onContinue: viewModel.goNext
+                )
+            case 2:
+                ScheduleLogisticsView(
+                    router: router,
+                    draft: viewModel.draft,
+                    isEditMode: viewModel.mode.isEdit,
+                    onBack: viewModel.goBack,
+                    onContinue: viewModel.goNext
+                )
+            case 3:
+                ScheduleFeedbackView(
+                    router: router,
+                    draft: viewModel.draft,
+                    isEditMode: viewModel.mode.isEdit,
+                    onBack: viewModel.goBack,
+                    onContinue: viewModel.goNext,
+                    onSkipCreate: viewModel.createSchedule
+                )
+            default:
+                EmptyView()
+            }
         }
     }
 }

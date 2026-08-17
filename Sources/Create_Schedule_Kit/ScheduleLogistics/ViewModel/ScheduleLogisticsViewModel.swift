@@ -15,6 +15,8 @@ final class ScheduleLogisticsViewModel: BaseViewModel {
 
     // MARK: - Dependencies
     private let draft: ScheduleDraft
+    /// Edit mode unlocks the coordinator (server type-ahead) and contact number fields.
+    let isEditMode: Bool
     private let onBack: () -> Void
     private let onContinue: () -> Void
 
@@ -28,6 +30,8 @@ final class ScheduleLogisticsViewModel: BaseViewModel {
     @Published var trainerType: TrainerType = .internal
     @Published var trainerResults: [ScheduleLogisticsDataModel.Trainer] = []
     @Published var selectedTrainers: [ScheduleLogisticsDataModel.Trainer] = []
+    /// Incremented to ask the trainer search field to clear itself and take focus.
+    @Published private(set) var trainerFocusToken: Int = 0
     /// Last typed trainer keyword, kept so the search can re-run when Trainer Type changes.
     private var trainerQuery: String = ""
 
@@ -37,9 +41,14 @@ final class ScheduleLogisticsViewModel: BaseViewModel {
     @Published var coordinatorName: String = ""
     @Published var contactNumber: String = ""
 
+    // Coordinator type-ahead (edit mode only).
+    @Published var coordinatorResults: [ScheduleLogisticsDataModel.CoordinatorUser] = []
+    @Published var selectedCoordinator: ScheduleLogisticsDataModel.CoordinatorUser?
+
     // MARK: - Init
-    init(router: AnyRouter, draft: ScheduleDraft, onBack: @escaping () -> Void, onContinue: @escaping () -> Void) {
+    init(router: AnyRouter, draft: ScheduleDraft, isEditMode: Bool = false, onBack: @escaping () -> Void, onContinue: @escaping () -> Void) {
         self.draft = draft
+        self.isEditMode = isEditMode
         self.onBack = onBack
         self.onContinue = onContinue
         super.init(router: router)
@@ -62,6 +71,22 @@ final class ScheduleLogisticsViewModel: BaseViewModel {
         selectedTags = draft.tags
         coordinatorName = draft.coordinatorName
         contactNumber = draft.contactNumber
+        // Show the current coordinator in the type-ahead field when editing.
+        if isEditMode, !draft.coordinatorName.isEmpty {
+            selectedCoordinator = ScheduleLogisticsDataModel.CoordinatorUser(
+                id: "current-coordinator",
+                dB_UserId: nil,
+                name: draft.coordinatorName,
+                emailId: nil,
+                userId: nil,
+                profilePicture: nil,
+                mobileNumber: nil,
+                userType: nil,
+                nameUserId: nil,
+                isDeleted: nil,
+                userMasterId: nil
+            )
+        }
     }
 }
 
@@ -129,6 +154,27 @@ extension ScheduleLogisticsViewModel {
 
     func removeTrainer(_ trainer: ScheduleLogisticsDataModel.Trainer) {
         selectedTrainers.removeAll { $0.id == trainer.id }
+    }
+
+    /// Clears the trainer search field and puts the keyboard in it, ready for the next name.
+    func didTapAddAnotherTrainer() {
+        trainerFocusToken += 1
+    }
+
+    func onCoordinatorSearch(_ query: String) {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 2 else { coordinatorResults = []; return }
+        Task { [weak self] in await self?.searchCoordinators(query: trimmed) }
+    }
+
+    func didSelectCoordinator(_ user: ScheduleLogisticsDataModel.CoordinatorUser) {
+        selectedCoordinator = user
+        coordinatorName = user.name
+        // The searched user's mobile number arrives encrypted; the populated value
+        // stays user-editable afterwards.
+        let raw = user.mobileNumber ?? ""
+        let decrypted = EncryptDecryptUtility.shared.newDecryptString(responseStr: raw)
+        contactNumber = decrypted.isEmpty ? raw : decrypted
     }
 
     func toggleTag(_ tag: ScheduleLogisticsDataModel.Tag) {
@@ -204,6 +250,24 @@ extension ScheduleLogisticsViewModel {
             )
         } catch {
             handleAPIError(error, resetLoadingState: true, showToast: true)
+        }
+    }
+
+    /// Coordinator type-ahead (edit mode). Same encrypted contract as `searchTrainers`;
+    /// coordinators are always searched as Internal users.
+    private func searchCoordinators(query: String) async {
+        let payload = ScheduleLogisticsDataModel.SearchActiveInActiveUserRequest.Payload(
+            userId: EncryptDecryptUtility.shared.newEncryptValueString(valueStr: query),
+            userType: EncryptDecryptUtility.shared.newEncryptValueString(valueStr: TrainerType.internal.apiValue)
+        )
+        do {
+            coordinatorResults = try await ApiService.shared.requestPostHeader(
+                type: [ScheduleLogisticsDataModel.CoordinatorUser].self,
+                model: ScheduleLogisticsDataModel.SearchActiveInActiveUserRequest(),
+                payload: payload
+            )
+        } catch {
+            handleAPIError(error, resetLoadingState: true, showToast: false)
         }
     }
 

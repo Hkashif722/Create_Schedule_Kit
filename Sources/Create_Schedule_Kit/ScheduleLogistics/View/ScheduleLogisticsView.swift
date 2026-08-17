@@ -14,11 +14,11 @@ struct ScheduleLogisticsView: View {
     @StateObject private var viewModel: ScheduleLogisticsViewModel
     private let router: AnyRouter
 
-    init(router: AnyRouter, draft: ScheduleDraft, onBack: @escaping () -> Void, onContinue: @escaping () -> Void) {
+    init(router: AnyRouter, draft: ScheduleDraft, isEditMode: Bool = false, onBack: @escaping () -> Void, onContinue: @escaping () -> Void) {
         self.router = router
         _viewModel = StateObject(
             wrappedValue: ScheduleLogisticsViewModel(
-                router: router, draft: draft, onBack: onBack, onContinue: onContinue
+                router: router, draft: draft, isEditMode: isEditMode, onBack: onBack, onContinue: onContinue
             )
         )
     }
@@ -84,18 +84,16 @@ private extension ScheduleLogisticsView {
             subtitle: "Labels & point of contact"
         ) {
             VStack(alignment: .leading, spacing: 18) {
-                tagsField
-                coordinatorField
-                contactField
+                tagsField.zIndex(1)
+                coordinatorField.zIndex(2)
+                contactField.zIndex(1)
             }
         }
     }
 
     var addAnotherTrainerButton: some View {
         Button {
-            // The trainer search above supports adding multiple trainers; this is the
-            // affordance shown in the design to prompt adding another.
-            // TODO: focus/reset the trainer search field when field-focus is wired.
+            viewModel.didTapAddAnotherTrainer()
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "plus.circle.fill")
@@ -161,6 +159,7 @@ private extension ScheduleLogisticsView {
                 viewModel.trainerResults,
                 placeholder: "Search and add trainer",
                 isSearchable: true,
+                focusRequest: viewModel.trainerFocusToken,
                 onSearchTextChange: { viewModel.onTrainerSearch($0) },
                 onSelection: { viewModel.didSelectTrainer($0) }
             )
@@ -192,24 +191,39 @@ private extension ScheduleLogisticsView {
         }
     }
 
+    @ViewBuilder
     var coordinatorField: some View {
-        CSTextField(
-            title: "Coordinator name",
-            isRequired: true,
-            placeholder: "Auto-filled from training place",
-            text: $viewModel.coordinatorName,
-            isReadOnly: true,
-            leadingSystemImage: "person"
-        )
+        if viewModel.isEditMode {
+            VStack(alignment: .leading, spacing: 6) {
+                CSFieldLabel(title: "Coordinator name", isRequired: true)
+                DropDownMenuListViewPkg(
+                    viewModel.coordinatorResults,
+                    placeholder: "Type to search coordinators…",
+                    selectedOption: viewModel.selectedCoordinator,
+                    isSearchable: true,
+                    onSearchTextChange: { viewModel.onCoordinatorSearch($0) },
+                    onSelection: { viewModel.didSelectCoordinator($0) }
+                )
+            }
+        } else {
+            CSTextField(
+                title: "Coordinator name",
+                isRequired: true,
+                placeholder: "Auto-filled from training place",
+                text: $viewModel.coordinatorName,
+                isReadOnly: true,
+                leadingSystemImage: "person"
+            )
+        }
     }
 
     var contactField: some View {
         CSTextField(
             title: "Contact number",
             isRequired: true,
-            placeholder: "Auto-filled from training place",
+            placeholder: viewModel.isEditMode ? "Enter contact number" : "Auto-filled from training place",
             text: $viewModel.contactNumber,
-            isReadOnly: true,
+            isReadOnly: !viewModel.isEditMode,
             keyboardType: .phonePad,
             leadingSystemImage: "phone"
         )

@@ -14,6 +14,8 @@ struct CSSegmentedControl<Option: Hashable>: View {
     let title: (Option) -> String
     /// Optional leading SF Symbol per option (e.g. wifi / building for delivery mode).
     var icon: (Option) -> String? = { _ in nil }
+    /// When false the control is display-only (locked fields in the edit flow).
+    var isEnabled: Bool = true
     @Binding var selection: Option
 
     var body: some View {
@@ -21,6 +23,7 @@ struct CSSegmentedControl<Option: Hashable>: View {
             ForEach(options, id: \.self) { option in
                 let isSelected = option == selection
                 Button {
+                    guard isEnabled else { return }
                     selection = option
                 } label: {
                     HStack(spacing: 6) {
@@ -43,5 +46,6 @@ struct CSSegmentedControl<Option: Hashable>: View {
                 .buttonStyle(.plain)
             }
         }
+        .opacity(isEnabled ? 1 : 0.55)
     }
 }

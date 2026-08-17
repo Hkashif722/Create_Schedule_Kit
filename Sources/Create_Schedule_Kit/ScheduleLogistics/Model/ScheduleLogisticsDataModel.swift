@@ -61,6 +61,23 @@ struct ScheduleLogisticsDataModel {
         }
     }
 
+    /// POST user search for the coordinator type-ahead (edit mode). Same contract as
+    /// `SearchTrainerRequest`: `userId` carries the typed keyword and `userType` the
+    /// user type; both are encrypted in-package before sending.
+    struct SearchActiveInActiveUserRequest: EndpointModel {
+        var path: String {
+            [APIConst.courseBaseUrl, APIConst.versionAPI, APIConst.userLower, APIConst.searchActiveInActiveUser]
+                .joined(separator: "/")
+        }
+        var method: HTTPMethod { .post }
+        var headers: [String: String]? { nil }
+
+        struct Payload: Encodable {
+            let userId: String
+            let userType: String
+        }
+    }
+
     /// GET all tags.
     struct AllTagsRequest: EndpointModel {
         var path: String {
@@ -105,6 +122,24 @@ struct ScheduleLogisticsDataModel {
 
         var displayName: String { nameUserId ?? name }
         var description: String { displayName }
+    }
+
+    /// User row from `searchActiveInActiveUser`. Identity and contact fields are
+    /// encrypted opaque strings; `mobileNumber` is decrypted in-package on selection.
+    struct CoordinatorUser: Codable, Identifiable, DropDownMenuProtocolPkg {
+        let id: String            // encrypted
+        let dB_UserId: String?    // encrypted
+        let name: String
+        let emailId: String?      // encrypted
+        let userId: String?       // encrypted
+        let profilePicture: String?
+        let mobileNumber: String? // encrypted
+        let userType: String?
+        let nameUserId: String?
+        let isDeleted: Bool?
+        let userMasterId: Int?
+
+        var description: String { nameUserId ?? name }
     }
 
     struct Tag: Codable, Identifiable, DropDownMenuProtocolPkg {

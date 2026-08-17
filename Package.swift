@@ -20,13 +20,12 @@ let package = Package(
             url: "https://dev.azure.com/EnthralltechDevOps/IOS_APIManager/_git/IOS_APIManager",
             branch: "add_download_method_bug_fixes"
         ),
-        // TEMP: local path while feature/shared-date-time-picker is pending push + PR.
-        // Revert to .package(url: "https://github.com/Hkashif722/SwiftUIUtility", branch: "update")
-        // once the DatePicker/TimePicker PR merges to `update`.
-        .package(
-            url: "https://github.com/Hkashif722/SwiftUIUtility",
-            branch: "update"
-        ),
+        // TEMP: local path while the DropDownMenuListViewPkg `focusRequest` parameter
+        // (used by "Add another trainer" to focus the trainer search field) is pending
+        // push + PR. Revert to
+        // .package(url: "https://github.com/Hkashif722/SwiftUIUtility", branch: "update")
+        // once that change merges to `update`.
+        .package(path: "../SwiftUIUtility"),
         .package(
             url: "https://github.com/Hkashif722/PopoverUtility.git",
             .upToNextMinor(from: "1.0.0")

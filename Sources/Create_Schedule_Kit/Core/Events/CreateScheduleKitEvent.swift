@@ -12,5 +12,6 @@ import Foundation
 /// app of schedule lifecycle changes). Consumed via `CreateScheduleKitEventPublisher`.
 public enum CreateScheduleKitEvent {
     case scheduleCreated(scheduleCode: String)
+    case scheduleUpdated(scheduleCode: String)
     case cancelled
 }

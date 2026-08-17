@@ -95,8 +95,16 @@ extension ScheduleListViewModel {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] event in
                 guard let self else { return }
-                if case .scheduleCreated = event {
+                switch event {
+                case .scheduleCreated:
                     Task { await self.refresh() }
+                case .scheduleUpdated:
+                    // The wizard is dismissed before this fires, so the list owns
+                    // the success feedback.
+                    self.toast = Toast(style: .success, message: "Schedule updated successfully.")
+                    Task { await self.refresh() }
+                case .cancelled:
+                    break
                 }
             }
             .store(in: &cancellables)
@@ -156,7 +164,12 @@ extension ScheduleListViewModel {
             )
         )
     }
-    func didTapEdit(_ schedule: Schedule) { /* TODO: edit schedule */ }
+    func didTapEdit(_ schedule: Schedule) {
+        NavigationService.shared.navigate(
+            using: router,
+            to: AppNavigationDestination.editWizard(scheduleID: schedule.id)
+        )
+    }
 }
 
 // MARK: - PaginatableViewModel

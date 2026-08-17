@@ -28,7 +28,9 @@ struct AttendanceView: View {
         VStack(spacing: 0) {
             tabBar
             content
-            footer
+            if viewModel.showsSaveFooter {
+                footer
+            }
         }
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
         .navigationTitle("Update Attendance")
@@ -79,10 +81,12 @@ private extension AttendanceView {
 
     var attendanceTab: some View {
         ScrollView {
+            // Strictly-decreasing zIndex top→bottom so the status dropdown, which expands
+            // as an overlay past its card, draws above the user list beneath it.
             VStack(spacing: 16) {
-                infoCard
-                formCard
-                usersCard
+                infoCard.zIndex(3)
+                formCard.zIndex(2)
+                usersCard.zIndex(1)
             }
             .padding(16)
         }
@@ -122,7 +126,7 @@ private extension AttendanceView {
         card {
             VStack(alignment: .leading, spacing: 16) {
                 CSTextField(title: "Schedule Details", placeholder: "-",
-                            text: .constant(viewModel.navModel.dateRangeText), isReadOnly: true)
+                            text: .constant(viewModel.scheduleDateRangeText), isReadOnly: true)
 
                 CSRequiredDateField(
                     router: router,

@@ -14,11 +14,11 @@ struct ScheduleBasicDetailsView: View {
     @StateObject private var viewModel: ScheduleBasicDetailsViewModel
     private let router: AnyRouter
 
-    init(router: AnyRouter, draft: ScheduleDraft, onBack: @escaping () -> Void, onContinue: @escaping () -> Void) {
+    init(router: AnyRouter, draft: ScheduleDraft, isEditMode: Bool = false, onBack: @escaping () -> Void, onContinue: @escaping () -> Void) {
         self.router = router
         _viewModel = StateObject(
             wrappedValue: ScheduleBasicDetailsViewModel(
-                router: router, draft: draft, onBack: onBack, onContinue: onContinue
+                router: router, draft: draft, isEditMode: isEditMode, onBack: onBack, onContinue: onContinue
             )
         )
     }
@@ -54,9 +54,10 @@ private extension ScheduleBasicDetailsView {
             // Strictly-decreasing zIndex top→bottom so each row's downward-expanding
             // dropdown list draws above every row beneath it.
             VStack(alignment: .leading, spacing: 18) {
-                scheduleCodeField.zIndex(7)
-                courseField.zIndex(6)
-                moduleField.zIndex(5)
+                scheduleCodeField.zIndex(8)
+                courseField.zIndex(7)
+                moduleField.zIndex(6)
+                if viewModel.isEditMode { categoryFields.zIndex(5) }
                 deliveryField.zIndex(4)
                 if viewModel.showWebinarSection { webinarField.zIndex(3) }
                 if viewModel.showCredentialSection { credentialCard.zIndex(2) }
@@ -100,30 +101,51 @@ private extension ScheduleBasicDetailsView {
         }
     }
 
+    @ViewBuilder
     var courseField: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            CSFieldLabel(title: "Course name", isRequired: true)
-            DropDownMenuListViewPkg(
-                viewModel.courseResults,
-                placeholder: "Search a course",
-                selectedOption: viewModel.selectedCourse,
-                isSearchable: true,
-                onSearchTextChange: { viewModel.onCourseSearch($0) },
-                onSelection: { viewModel.didSelectCourse($0) }
-            )
+        if viewModel.isEditMode {
+            CSReadOnlyField(title: "Course name", value: viewModel.selectedCourse?.title ?? "", isRequired: true)
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                CSFieldLabel(title: "Course name", isRequired: true)
+                DropDownMenuListViewPkg(
+                    viewModel.courseResults,
+                    placeholder: "Search a course",
+                    selectedOption: viewModel.selectedCourse,
+                    isSearchable: true,
+                    onSearchTextChange: { viewModel.onCourseSearch($0) },
+                    onSelection: { viewModel.didSelectCourse($0) }
+                )
+            }
         }
     }
 
+    @ViewBuilder
     var moduleField: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            CSFieldLabel(title: "Module name", isRequired: true)
-            DropDownMenuListViewPkg(
-                viewModel.modules,
-                placeholder: viewModel.selectedCourse == nil ? "Select a course first" : "Select module",
-                selectedOption: viewModel.selectedModule,
-                isSearchable: false,
-                onSelection: { viewModel.didSelectModule($0) }
-            )
+        if viewModel.isEditMode {
+            CSReadOnlyField(title: "Module name", value: viewModel.selectedModule?.title ?? "", isRequired: true)
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                CSFieldLabel(title: "Module name", isRequired: true)
+                DropDownMenuListViewPkg(
+                    viewModel.modules,
+                    placeholder: viewModel.selectedCourse == nil ? "Select a course first" : "Select module",
+                    selectedOption: viewModel.selectedModule,
+                    isSearchable: false,
+                    onSelection: { viewModel.didSelectModule($0) }
+                )
+            }
+        }
+    }
+
+    /// Read-only category rows (edit mode only), resolved from the locked module.
+    var categoryFields: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            CSReadOnlyField(title: "Category", value: viewModel.categoryText)
+            HStack(alignment: .top, spacing: 12) {
+                CSReadOnlyField(title: "Sub category", value: viewModel.subCategoryText)
+                CSReadOnlyField(title: "Sub sub category", value: viewModel.subSubCategoryText)
+            }
         }
     }
 
@@ -134,6 +156,7 @@ private extension ScheduleBasicDetailsView {
                 options: viewModel.deliveryOptions,
                 title: { $0.displayTitle },
                 icon: { $0 == .online ? "wifi" : "building.2" },
+                isEnabled: !viewModel.isEditMode,
                 selection: Binding(
                     get: { viewModel.deliveryMode },
                     set: { viewModel.didSelectDelivery($0) }
@@ -142,19 +165,24 @@ private extension ScheduleBasicDetailsView {
         }
     }
 
+    @ViewBuilder
     var webinarField: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            CSFieldLabel(title: "Webinar type", isRequired: true)
-            DropDownMenuListViewPkg(
-                webinarMenuItems,
-                placeholder: "Select webinar type",
-                selectedOption: selectedWebinarMenuItem,
-                isSearchable: false,
-                onSelection: { item in
-                    let type = viewModel.webinarOptions[item.id]
-                    viewModel.didSelectWebinarType(type)
-                }
-            )
+        if viewModel.isEditMode {
+            CSReadOnlyField(title: "Webinar type", value: viewModel.webinarType?.displayTitle ?? "", isRequired: true)
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                CSFieldLabel(title: "Webinar type", isRequired: true)
+                DropDownMenuListViewPkg(
+                    webinarMenuItems,
+                    placeholder: "Select webinar type",
+                    selectedOption: selectedWebinarMenuItem,
+                    isSearchable: false,
+                    onSelection: { item in
+                        let type = viewModel.webinarOptions[item.id]
+                        viewModel.didSelectWebinarType(type)
+                    }
+                )
+            }
         }
     }
 

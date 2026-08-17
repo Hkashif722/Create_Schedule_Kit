@@ -53,6 +53,15 @@ extension NavigationViewModel {
         let scheduleCode: String
         let courseID: Int
         let moduleID: Int
+        let scheduleID: Int?
         let onComplete: () -> Void
+        
+        init(scheduleCode: String, courseID: Int, moduleID: Int, scheduleID: Int? = nil, onComplete: @escaping () -> Void) {
+            self.scheduleCode = scheduleCode
+            self.courseID = courseID
+            self.moduleID = moduleID
+            self.scheduleID = scheduleID
+            self.onComplete = onComplete
+        }
     }
 }

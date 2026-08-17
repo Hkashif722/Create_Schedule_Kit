@@ -6,7 +6,7 @@
 //
 //   • ILTTrainingAttendance/GetUsersForAttendance      → [Nominee]  (paginated)
 //   • ILTTrainingAttendance/GetUsersCountForAttendance → Int        (count, parallel)
-//   • Remove-nominee endpoint — PENDING (wired when provided).
+//   • TrainingNomination/DeleteUserNomination          → empty body (remove a nominee)
 //
 
 import Foundation
@@ -36,7 +36,31 @@ enum ScheduleDetailDataModel {
         var headers: [String: String]? { nil }
     }
 
+    /// POST — remove a nominated user from the schedule. Returns an empty body.
+    struct DeleteUserNominationRequest: EndpointModel {
+        var path: String {
+            [APIConst.courseBaseUrl, APIConst.versionAPI, APIConst.trainingNomination, APIConst.deleteUserNomination]
+                .joined(separator: "/")
+        }
+        var method: HTTPMethod { .post }
+        var headers: [String: String]? { nil }
+    }
+
     // MARK: - Payload
+
+    /// Body for `DeleteUserNomination`. `UserIdEncrypted` is the encrypted user id from the
+    /// nominee row — passed through untouched, never decoded.
+    struct DeleteNominationPayload: Encodable {
+        let scheduleID: Int
+        let courseId: Int
+        let moduleId: Int
+        let userIdEncrypted: String
+
+        enum CodingKeys: String, CodingKey {
+            case scheduleID, courseId, moduleId
+            case userIdEncrypted = "UserIdEncrypted"
+        }
+    }
 
     /// Shared body for the attendance list + count. `Type` keeps the server's "Attandance" spelling.
     struct AttendancePayload: Encodable {

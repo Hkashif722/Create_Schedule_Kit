@@ -10,6 +10,7 @@
 //   • user/GetConfigurableParameterValue/AttendanceOnCurrentDate → String ("Yes"/"No")
 //   • ConfigurableParameters/GetValue/ATTNOM_DEL         → reuses ScheduleListDataModel.ConfigValueResponse
 //   • ILTTrainingAttendance/UpdateILTTrainingAttendance  → NominateUsersDataModel.NominateResponse (save)
+//   • ILTTrainingAttendance/AttendanceDelete             → Bool              (remove a user)
 //
 
 import Foundation
@@ -61,6 +62,16 @@ enum AttendanceDataModel {
         var headers: [String: String]? { nil }
     }
 
+    /// POST — remove a user's attendance record. Returns a bare `Bool`.
+    struct AttendanceDeleteRequest: EndpointModel {
+        var path: String {
+            [APIConst.courseBaseUrl, APIConst.versionAPI, APIConst.iltTrainingAttendance, APIConst.attendanceDelete]
+                .joined(separator: "/")
+        }
+        var method: HTTPMethod { .post }
+        var headers: [String: String]? { nil }
+    }
+
     /// POST — save/mark attendance. Body is a JSON array of `UpdateItem`.
     /// Returns the shared `NominateUsersDataModel.NominateResponse` envelope.
     struct UpdateAttendanceRequest: EndpointModel {
@@ -90,6 +101,17 @@ enum AttendanceDataModel {
         enum CodingKeys: String, CodingKey {
             case scheduleID, courseId, moduleId, page, pageSize, searchText, search1, searchText1
             case type = "Type"
+        }
+    }
+
+    /// Body for `AttendanceDelete`. Keys are PascalCase exactly as the server expects.
+    struct AttendanceDeletePayload: Encodable {
+        let userMasterId: Int
+        let scheduleId: Int
+
+        enum CodingKeys: String, CodingKey {
+            case userMasterId = "UserMasterId"
+            case scheduleId = "ScheduleId"
         }
     }
 

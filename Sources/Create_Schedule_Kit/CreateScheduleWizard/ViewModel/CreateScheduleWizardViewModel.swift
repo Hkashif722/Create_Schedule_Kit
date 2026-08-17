@@ -15,16 +15,31 @@ final class CreateScheduleWizardViewModel: BaseViewModel {
 
     // MARK: - State
     let draft = ScheduleDraft()
+    let mode: WizardMode
     let stepLabels = ["Basics", "Venue", "Feedback"]
     var totalSteps: Int { stepLabels.count }
     @Published var currentStep: Int = 1
 
+    /// Edit mode fetches + prefills the draft before step 1 may render (step view
+    /// models copy the draft in their inits). Always true in create mode.
+    @Published private(set) var isHydrated: Bool
+
+    /// The fetched schedule in edit mode — the base the update payload echoes back.
+    private(set) var editBase: EditScheduleDataModel.ScheduleDetailsResponse?
+
     private let onFinish: ((CreateScheduleKitEvent) -> Void)?
 
+    var navTitle: String { mode.isEdit ? "Edit Schedule" : "Create Schedule" }
+
     // MARK: - Init
-    init(router: AnyRouter, onFinish: ((CreateScheduleKitEvent) -> Void)? = nil) {
+    init(router: AnyRouter, mode: WizardMode = .create, onFinish: ((CreateScheduleKitEvent) -> Void)? = nil) {
+        self.mode = mode
+        self.isHydrated = !mode.isEdit
         self.onFinish = onFinish
         super.init(router: router)
+        if case .edit(let scheduleID) = mode {
+            Task { [weak self] in await self?.loadEditData(scheduleID: scheduleID) }
+        }
     }
 
 }
@@ -60,9 +75,17 @@ extension CreateScheduleWizardViewModel {
         goBack(toRoot: false)
     }
 
-    /// Submit the collected draft to `ILTSchedule/PostWithMeeting`.
+    /// Submit the collected draft — create posts to `ILTSchedule/PostWithMeeting`,
+    /// edit posts the echo-back payload to `ILTSchedule/UpdateILTScheduleWithMeeting`.
     private func finish() {
-        Task { [weak self] in await self?.submit() }
+        Task { [weak self] in
+            guard let self else { return }
+            if self.mode.isEdit {
+                await self.submitUpdate()
+            } else {
+                await self.submit()
+            }
+        }
     }
 
     @MainActor
@@ -91,6 +114,84 @@ extension CreateScheduleWizardViewModel {
     private func goBack(toRoot: Bool) {
         Task { @MainActor [weak self] in
             self?.router.dismissScreen()
+        }
+    }
+}
+
+// MARK: - Edit mode (hydration + update)
+extension CreateScheduleWizardViewModel {
+
+    /// Fetch the full schedule, resolve the module/timezone picker items, and prefill
+    /// the draft. The wizard renders its steps only after this completes.
+    @MainActor
+    private func loadEditData(scheduleID: Int) async {
+        loadingState = .loading(message: "Loading schedule...")
+        do {
+            let details = try await ApiService.shared.requestPostHeader(
+                type: EditScheduleDataModel.ScheduleDetailsResponse.self,
+                model: EditScheduleDataModel.GetScheduleDetailsByIDRequest(),
+                payload: EditScheduleDataModel.GetScheduleDetailsByIDRequest.Payload(scheduleId: scheduleID)
+            )
+            // Both lookups are non-fatal — the mapper synthesizes display-equivalent
+            // items from the response when a list is unavailable.
+            async let modulesFetch = fetchModulesQuietly(courseID: details.courseID)
+            async let timezonesFetch = fetchTimezonesQuietly()
+            let (modules, timezones) = await (modulesFetch, timezonesFetch)
+
+            editBase = details
+            draft.apply(details: details, modules: modules, timezones: timezones)
+            isHydrated = true
+            loadingState = .none
+        } catch {
+            // Without the base schedule the editor is unusable — surface and leave.
+            handleAPIError(error, resetLoadingState: true, showToast: true)
+            router.dismissScreen()
+        }
+    }
+
+    private func fetchModulesQuietly(courseID: Int?) async -> [ScheduleBasicDetailsDataModel.ModuleItem] {
+        guard let courseID else { return [] }
+        return (try? await ApiService.shared.requestGetHeader(
+            type: [ScheduleBasicDetailsDataModel.ModuleItem].self,
+            model: ScheduleBasicDetailsDataModel.ModulesByCourseRequest(courseID: "\(courseID)")
+        )) ?? []
+    }
+
+    private func fetchTimezonesQuietly() async -> [ScheduleBasicDetailsDataModel.TimezoneItem] {
+        (try? await ApiService.shared.requestGetHeader(
+            type: [ScheduleBasicDetailsDataModel.TimezoneItem].self,
+            model: ScheduleBasicDetailsDataModel.TimezonesRequest()
+        )) ?? []
+    }
+
+    @MainActor
+    private func submitUpdate() async {
+        guard let base = editBase else {
+            toast = Toast(style: .error, message: "Schedule details are not loaded yet.")
+            return
+        }
+        loadingState = .loading(message: "Updating schedule...")
+        do {
+            let payload = EditScheduleDataModel.UpdatePayload(base: base, draft: draft)
+            let response = try await ApiService.shared.requestPostHeader(
+                type: CreateScheduleWizardDataModel.CreateScheduleResponse.self,
+                model: EditScheduleDataModel.UpdateWithMeetingRequest(),
+                payload: payload
+            )
+            guard (response.statusCode ?? 0) == 200 else {
+                loadingState = .none
+                toast = Toast(style: .error, message: response.message ?? "Could not update schedule.")
+                return
+            }
+            loadingState = .none
+            // No nomination prompt on update — the list shows the success toast
+            // (a toast set on this dismissed screen would never render).
+            let event = CreateScheduleKitEvent.scheduleUpdated(scheduleCode: draft.scheduleCode)
+            eventPublisher.publish(event)
+            onFinish?(event)
+            router.dismissScreen()
+        } catch {
+            handleAPIError(error, resetLoadingState: true, showToast: true)
         }
     }
 }

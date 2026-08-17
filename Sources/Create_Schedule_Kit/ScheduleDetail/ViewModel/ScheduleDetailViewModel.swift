@@ -7,7 +7,7 @@
 //  (count fetched in parallel). "+ Add Nominee" reopens the ScheduleNominate sheet.
 //
 
-import Foundation
+import SwiftUI
 import SwiftfulRouting
 import SwiftUIUtilities
 import NetworkService
@@ -73,6 +73,7 @@ extension ScheduleDetailViewModel {
             scheduleCode: schedule.scheduleCode ?? "",
             courseID: schedule.courseID ?? 0,
             moduleID: schedule.moduleId ?? 0,
+            scheduleID: schedule.id,
             onComplete: { [weak self] in
                 Task { await self?.reloadNominees() }
             }
@@ -81,8 +82,28 @@ extension ScheduleDetailViewModel {
     }
 
     func didTapDeleteNominee(_ nominee: Nominee) {
-        // TODO: wire the remove-nominee endpoint once provided, then remove locally + refresh count.
-        toast = Toast(style: .info, message: "Removing nominees is coming soon.")
+        let model = CustomAlertPopupModel(
+            title: "Delete",
+            alertType: .none,
+            content: {
+                Text("Do you want to delete selected record permanently?")
+                    .multilineTextAlignment(.center)
+                    .padding()
+            },
+            primaryButtonTitle: "Delete",
+            primaryAction: { [weak self] in
+                self?.router.dismissModal()
+                Task { await self?.deleteNominee(nominee) }
+            },
+            secondaryButtonTitle: "Cancel",
+            secondaryAction: { [weak self] in
+                self?.router.dismissModal()
+            }
+        )
+        NavigationService.shared.navigate(
+            using: router,
+            to: AppNavigationDestination.packageDestination(.customAlertPopupView(model))
+        )
     }
 
     @MainActor
@@ -105,10 +126,22 @@ extension ScheduleDetailViewModel {
     }
 
     func handleFetchError(_ error: Error, isLoadingMore: Bool) {
+        if let apiError = error as? APIError, case .noData = apiError {
+            hasMore = false
+
+            if !isLoadingMore {
+                loadingState = .loaded
+                emptyState = .noData
+                toast = Toast(style: .info, message: "No nominated users found.")
+            }
+            return
+        }
+
         if !isLoadingMore {
             loadingState = .none
             emptyState = .error
         }
+
         handleAPIError(error, resetLoadingState: false, showToast: true)
     }
 }
@@ -128,6 +161,47 @@ extension ScheduleDetailViewModel {
             searchText1: nil,
             type: "Attandance"
         )
+    }
+
+    /// The API wants the AES-encrypted user id, but the list returns only the numeric one
+    /// (`userId` there is a plain login name), so it is encrypted in-package.
+    private func encryptedUserId(for nominee: Nominee) -> String {
+        EncryptDecryptUtility.shared.newEncryptValueString(valueStr: "\(nominee.id)")
+    }
+
+    /// Removes a nominee from the schedule. This endpoint answers with an empty body,
+    /// so anything that decodes without throwing — including `noData` — counts as success.
+    @MainActor
+    private func deleteNominee(_ nominee: Nominee) async {
+        loadingState = .loading(title: "Deleting", message: "Please wait.")
+        let payload = ScheduleDetailDataModel.DeleteNominationPayload(
+            scheduleID: schedule.id,
+            courseId: schedule.courseID ?? 0,
+            moduleId: schedule.moduleId ?? 0,
+            userIdEncrypted: encryptedUserId(for: nominee)
+        )
+        do {
+            _ = try await ApiService.shared.requestPostHeader(
+                type: EmptyResponse.self,
+                model: ScheduleDetailDataModel.DeleteUserNominationRequest(),
+                payload: payload
+            )
+            loadingState = .none
+            toast = Toast(style: .success, message: "Record deleted successfully.")
+            Logger.shared.log(.info, message: "Schedule Nomitaion deleted for user successfully")
+        } catch {
+            switch error {
+            case let apiError as APIError? where apiError == .noData:
+               break
+                
+            case let apiError as APIError:
+                handleAPIError(apiError.toUIError(), showToast: true)
+                
+            default:
+                handleAPIError(error, resetLoadingState: true)
+            }
+        }
+        await reloadNominees()
     }
 
     @MainActor

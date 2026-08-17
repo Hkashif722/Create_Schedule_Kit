@@ -20,6 +20,7 @@ enum AppNavigationDestination {
     case feedbackPicker(NavigationViewModel.FeedbackPickerNavModel)
     case nominateUsers(NavigationViewModel.NominateUsersNavModel)
     case createWizard
+    case editWizard(scheduleID: Int)
     case scheduleDetail(NavigationViewModel.ScheduleDetailNavModel)
     case attendance(NavigationViewModel.AttendanceNavModel)
 }
@@ -52,6 +53,11 @@ extension AppNavigationDestination: NavigationProtocol {
         case .createWizard:
             pushScreen(router) { router in
                 CreateScheduleWizardView(router: router, onFinish: nil)
+            }
+
+        case .editWizard(let scheduleID):
+            pushScreen(router) { router in
+                CreateScheduleWizardView(router: router, mode: .edit(scheduleID: scheduleID), onFinish: nil)
             }
 
         case .scheduleDetail(let navModel):

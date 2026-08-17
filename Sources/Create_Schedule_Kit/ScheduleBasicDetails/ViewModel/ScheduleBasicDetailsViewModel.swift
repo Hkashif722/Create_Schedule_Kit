@@ -15,6 +15,8 @@ final class ScheduleBasicDetailsViewModel: BaseViewModel {
 
     // MARK: - Dependencies
     private let draft: ScheduleDraft
+    /// Edit mode locks the schedule-identity fields (course, module, delivery, webinar).
+    let isEditMode: Bool
     private let onBack: () -> Void
     private let onContinue: () -> Void
 
@@ -45,8 +47,9 @@ final class ScheduleBasicDetailsViewModel: BaseViewModel {
     private let dateFormat = CreateScheduleKitAPIManager.shared.getConfiguaredDate
 
     // MARK: - Init
-    init(router: AnyRouter, draft: ScheduleDraft, onBack: @escaping () -> Void, onContinue: @escaping () -> Void) {
+    init(router: AnyRouter, draft: ScheduleDraft, isEditMode: Bool = false, onBack: @escaping () -> Void, onContinue: @escaping () -> Void) {
         self.draft = draft
+        self.isEditMode = isEditMode
         self.onBack = onBack
         self.onContinue = onContinue
         super.init(router: router)
@@ -54,7 +57,8 @@ final class ScheduleBasicDetailsViewModel: BaseViewModel {
     }
 
     func loadData() {
-        if scheduleCode.isEmpty {
+        // Edit mode keeps the fetched schedule's own code — never mint a new one.
+        if scheduleCode.isEmpty, !isEditMode {
             Task { [weak self] in await self?.fetchScheduleCode() }
         }
         if timezones.isEmpty {
@@ -92,6 +96,11 @@ extension ScheduleBasicDetailsViewModel {
     var webinarOptions: [WebinarType] { WebinarType.allCases }
 
     var deliveryOptions: [DeliveryMode] { DeliveryMode.allCases }
+
+    // Read-only category rows shown in edit mode (from the locked module).
+    var categoryText: String { selectedModule?.category ?? "" }
+    var subCategoryText: String { selectedModule?.subCategory ?? "" }
+    var subSubCategoryText: String { selectedModule?.subSubCategory ?? "" }
 
     /// The credential identity (email) — decrypted when revealed, masked otherwise.
     var credentialDisplayValue: String {

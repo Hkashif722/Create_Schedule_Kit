@@ -254,6 +254,15 @@ extension NominateUsersViewModel {
 
     @MainActor
     private func resolveScheduleContext() async {
+        guard let scheduleID = navModel.scheduleID else {
+            await handleContext()
+            return
+        }
+        self.iltModuleId = navModel.moduleID
+        self.scheduleID = scheduleID
+    }
+    
+    private func handleContext() async {
         do {
             let modules = try await ApiService.shared.requestGetHeader(
                 type: [ScheduleBasicDetailsDataModel.ModuleItem].self,
@@ -313,6 +322,8 @@ extension NominateUsersViewModel {
             // Let the success toast render before tearing down the sheet + wizard.
             try? await Task.sleep(nanoseconds: 1_200_000_000)
             finishFlow()
+        } catch let error as APIError {
+            handleAPIError(error.toUIError(), resetLoadingState: true, showToast: true)
         } catch {
             handleAPIError(error, resetLoadingState: true, showToast: true)
         }

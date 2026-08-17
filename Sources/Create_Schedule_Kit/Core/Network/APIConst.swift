@@ -27,6 +27,8 @@ internal struct APIConst {
     static let scheduleCode = "ScheduleCode"
     static let getScheduleData = "GetScheduleData"
     static let count = "count"
+    static let getScheduleDetailsByID = "GetScheduleDetailsByID"
+    static let updateILTScheduleWithMeeting = "UpdateILTScheduleWithMeeting"
 
     // MARK: - TrainingPlace
     static let trainingPlace = "TrainingPlace"
@@ -36,6 +38,7 @@ internal struct APIConst {
     static let userLower = "user"   // lowercase route — do not normalize
     static let user = "User"
     static let searchTrainer = "searchTrainer"
+    static let searchActiveInActiveUser = "searchActiveInActiveUser"
     static let setting = "Setting"
     static let getColumnsForAccessibilty = "GetColumnsForAccessibilty"
     static let getTypeAhead = "GetTypeAhead"
@@ -47,6 +50,7 @@ internal struct APIConst {
     static let getUsersCountForNomination = "GetUsersCountForNomination"
     static let getUsersForNominationV2 = "GetUsersForNominationV2"
     static let nominateUser = "NominateUser"
+    static let deleteUserNomination = "DeleteUserNomination"
 
     // MARK: - Module
     static let module = "Module"
@@ -64,6 +68,7 @@ internal struct APIConst {
     static let getUsersForAttendance = "GetUsersForAttendance"
     static let getUsersCountForAttendance = "GetUsersCountForAttendance"
     static let updateILTTrainingAttendance = "UpdateILTTrainingAttendance"
+    static let attendanceDelete = "AttendanceDelete"
 
     // MARK: - ConfigurableParameters
     static let configurableParameters = "ConfigurableParameters"

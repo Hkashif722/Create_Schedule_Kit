@@ -10,6 +10,22 @@ import Foundation
 
 // MARK: - Cross-cutting enums
 
+/// Whether the wizard creates a new schedule or edits an existing one.
+enum WizardMode: Equatable {
+    case create
+    case edit(scheduleID: Int)
+
+    var isEdit: Bool {
+        if case .edit = self { return true }
+        return false
+    }
+
+    var scheduleID: Int? {
+        if case .edit(let id) = self { return id }
+        return nil
+    }
+}
+
 enum DeliveryMode: String, CaseIterable {
     case online
     case offline

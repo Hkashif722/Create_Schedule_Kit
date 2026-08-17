@@ -16,12 +16,16 @@ struct ScheduleFeedbackView: View {
 
     private let teal = Color.teal
 
+    private let isEditMode: Bool
+
     init(router: AnyRouter,
          draft: ScheduleDraft,
+         isEditMode: Bool = false,
          onBack: @escaping () -> Void,
          onContinue: @escaping () -> Void,
          onSkipCreate: @escaping () -> Void) {
         self.router = router
+        self.isEditMode = isEditMode
         _viewModel = StateObject(
             wrappedValue: ScheduleFeedbackViewModel(
                 router: router, draft: draft,
@@ -139,7 +143,7 @@ struct ScheduleFeedbackView: View {
         Button { viewModel.didTapSkipCreate() } label: {
             HStack(spacing: 8) {
                 Image(systemName: "forward.end")
-                Text("Skip & create schedule")
+                Text(isEditMode ? "Skip & update schedule" : "Skip & create schedule")
             }
             .font(.system(size: 14, weight: .semibold))
             .foregroundColor(.secondary)
@@ -149,7 +153,7 @@ struct ScheduleFeedbackView: View {
 
     private var footer: some View {
         CSNavFooter(
-            nextTitle: "Create Schedule",
+            nextTitle: isEditMode ? "Update Schedule" : "Create Schedule",
             nextSystemImage: nil,
             onBack: { viewModel.didTapBack() },
             onNext: { viewModel.didTapContinue() }
