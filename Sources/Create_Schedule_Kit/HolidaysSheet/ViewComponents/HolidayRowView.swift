@@ -3,6 +3,7 @@
 //  Create_Schedule_Kit
 //
 //  Single day row in the Holidays sheet: date tile, working/weekend state, toggle.
+//  The range's first/last day arrive locked — captioned and un-togglable.
 //
 
 import SwiftUI
@@ -10,6 +11,8 @@ import SwiftUIUtilities
 
 struct HolidayRowView: View {
     let day: HolidayDay
+    /// "Start date" / "End date" when this row is locked, `nil` when it can be marked.
+    let lockCaption: String?
     let onToggle: () -> Void
     let onLabelChange: (String) -> Void
 
@@ -35,7 +38,10 @@ struct HolidayRowView: View {
                     .font(.system(size: 13))
                     .foregroundColor(.secondary)
 
-                if day.isHoliday {
+                if let lockCaption {
+                    Text(lockCaption)
+                        .font(.system(size: 15, weight: .bold))
+                } else if day.isHoliday {
                     TextField("Holiday name", text: $labelText)
                         .font(.system(size: 15, weight: .semibold))
                         .padding(.horizontal, 12)
@@ -55,9 +61,16 @@ struct HolidayRowView: View {
 
             Spacer(minLength: 8)
 
-            Toggle("", isOn: Binding(get: { day.isHoliday }, set: { _ in onToggle() }))
-                .labelsHidden()
-                .tint(ColorUtility.primaryColor)
+            if lockCaption != nil {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.secondary)
+                    .frame(width: 32, height: 32)
+            } else {
+                Toggle("", isOn: Binding(get: { day.isHoliday }, set: { _ in onToggle() }))
+                    .labelsHidden()
+                    .tint(ColorUtility.primaryColor)
+            }
         }
         .padding(12)
         .background(day.isHoliday ? ColorUtility.primaryColor.opacity(0.06) : Color(.systemBackground))
@@ -66,6 +79,7 @@ struct HolidayRowView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(day.isHoliday ? ColorUtility.primaryColor.opacity(0.25) : Color(.systemGray5), lineWidth: 1)
         )
+        .opacity(lockCaption == nil ? 1 : 0.55)
         .onAppear { labelText = day.label }
     }
 

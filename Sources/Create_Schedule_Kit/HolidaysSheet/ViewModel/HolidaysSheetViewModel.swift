@@ -30,13 +30,20 @@ final class HolidaysSheetViewModel: BaseViewModel {
     var subtitle: String {
         markedCount > 0 ? "\(markedCount) holiday\(markedCount > 1 ? "s" : "") marked" : "Schedule spans \(days.count) day\(days.count > 1 ? "s" : "")"
     }
+
+    /// Caption shown instead of a toggle on the two locked boundary rows; `nil` for any day
+    /// the user can actually mark.
+    func lockCaption(for day: HolidayDay) -> String? {
+        guard day.isLocked else { return nil }
+        return day.id == days.first?.id ? "Start date" : "End date"
+    }
 }
 
 // MARK: - Actions
 extension HolidaysSheetViewModel {
 
     func toggle(_ day: HolidayDay) {
-        guard let index = days.firstIndex(where: { $0.id == day.id }) else { return }
+        guard let index = days.firstIndex(where: { $0.id == day.id }), !days[index].isLocked else { return }
         days[index].isHoliday.toggle()
         if !days[index].isHoliday {
             days[index].label = "Working"
@@ -46,7 +53,7 @@ extension HolidaysSheetViewModel {
     }
 
     func updateLabel(_ day: HolidayDay, _ text: String) {
-        guard let index = days.firstIndex(where: { $0.id == day.id }) else { return }
+        guard let index = days.firstIndex(where: { $0.id == day.id }), !days[index].isLocked else { return }
         days[index].label = text
     }
 

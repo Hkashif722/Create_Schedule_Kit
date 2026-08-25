@@ -160,6 +160,6 @@ import SwiftUIUtilities
 
         #expect(draft.deliveryMode == .online)
         #expect(draft.webinarType == .zoom)
-        #expect(draft.credential?.teamsEmail == "ENC_ACCOUNT==")
+        #expect(draft.credential?.first?.teamsEmail == "ENC_ACCOUNT==")
     }
 }

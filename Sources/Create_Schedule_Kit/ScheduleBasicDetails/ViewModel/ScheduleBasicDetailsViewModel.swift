@@ -27,9 +27,10 @@ final class ScheduleBasicDetailsViewModel: BaseViewModel {
     @Published var modules: [ScheduleBasicDetailsDataModel.ModuleItem] = []
     @Published var selectedModule: ScheduleBasicDetailsDataModel.ModuleItem?
 
-    @Published var deliveryMode: DeliveryMode = .online
+    @Published var deliveryMode: DeliveryMode = .offline
     @Published var webinarType: WebinarType?
-    @Published var credential: ScheduleBasicDetailsDataModel.Credential?
+    @Published var credentials: [ScheduleBasicDetailsDataModel.Credential]?
+    @Published var selectedCredential: ScheduleBasicDetailsDataModel.Credential?
     @Published var isCredentialRevealed: Bool = false
 
     @Published var timezones: [ScheduleBasicDetailsDataModel.TimezoneItem] = []
@@ -40,6 +41,13 @@ final class ScheduleBasicDetailsViewModel: BaseViewModel {
     @Published var registrationEndDate: Date?
     @Published var startTime: String?
     @Published var endTime: String?
+
+    /// Bumped whenever the end-time field has to resync its display from the model — a
+    /// refused selection or a clear. `TimePickerTextField` stores the picked time in its
+    /// own `@State` and adopts `initialTimeString` only on first appearance, so changing
+    /// the model alone cannot pull a rejected value back off the screen. The view keys the
+    /// field on this token so it is rebuilt from the model instead.
+    @Published private(set) var endTimeFieldToken: Int = 0
 
     @Published var holidaysEnabled: Bool = false
     @Published var holidays: [HolidayDay] = []
@@ -72,7 +80,8 @@ final class ScheduleBasicDetailsViewModel: BaseViewModel {
         selectedModule = draft.module
         deliveryMode = draft.deliveryMode
         webinarType = draft.webinarType
-        credential = draft.credential
+        credentials = draft.credential
+        selectedCredential = draft.credential?.first
         selectedTimezone = draft.timezone
         startDate = draft.startDate
         endDate = draft.endDate
@@ -80,7 +89,8 @@ final class ScheduleBasicDetailsViewModel: BaseViewModel {
         startTime = draft.startTime
         endTime = draft.endTime
         holidays = draft.holidays
-        holidaysEnabled = !draft.holidays.filter { $0.isHoliday }.isEmpty
+        holidaysEnabled = ScheduleDateRules.hasMarkableHolidays(start: draft.startDate, end: draft.endDate)
+            && draft.holidays.contains { $0.isHoliday }
     }
 }
 
@@ -90,7 +100,10 @@ extension ScheduleBasicDetailsViewModel {
     var showWebinarSection: Bool { deliveryMode == .online }
 
     var showCredentialSection: Bool {
-        showWebinarSection && (webinarType?.hasCredentialAPI ?? false) && credential != nil
+        showWebinarSection
+            && (webinarType?.hasCredentialAPI ?? false)
+            && !(credentials?.isEmpty ?? true)
+            && selectedCredential != nil
     }
 
     var webinarOptions: [WebinarType] { WebinarType.allCases }
@@ -104,7 +117,7 @@ extension ScheduleBasicDetailsViewModel {
 
     /// The credential identity (email) — decrypted when revealed, masked otherwise.
     var credentialDisplayValue: String {
-        guard let raw = credential?.teamsEmail, !raw.isEmpty else { return "—" }
+        guard let raw = selectedCredential?.teamsEmail, !raw.isEmpty else { return "—" }
         guard isCredentialRevealed else { return String(repeating: "•", count: min(raw.count, 12)) }
         let decrypted = EncryptDecryptUtility.shared.newDecryptString(responseStr: raw)
         return decrypted.isEmpty ? raw : decrypted
@@ -124,7 +137,11 @@ extension ScheduleBasicDetailsViewModel {
     var datesEnabled: Bool { true }
     var endAndRegEnabled: Bool { startDate != nil }
 
+    /// Holidays only make sense when the range has a day between its locked start and end.
+    var canSetHolidays: Bool { ScheduleDateRules.hasMarkableHolidays(start: startDate, end: endDate) }
+
     var holidaysSubtitle: String {
+        guard canSetHolidays else { return "Available for schedules of 3 days or more" }
         let count = holidays.filter { $0.isHoliday }.count
         return count > 0 ? "\(count) holiday\(count > 1 ? "s" : "") marked" : "Schedule spans the selected range"
     }
@@ -134,6 +151,9 @@ extension ScheduleBasicDetailsViewModel {
         if deliveryMode == .online, webinarType == nil { return false }
         guard startDate != nil, endDate != nil, registrationEndDate != nil else { return false }
         guard startTime != nil, endTime != nil else { return false }
+        // Backstop for pairs that never went through the pickers — e.g. a draft hydrated
+        // from an existing schedule in edit mode.
+        guard !ScheduleDateRules.isEndTimeBeforeOrEqualToStart(start: startTime, end: endTime) else { return false }
         return true
     }
 
@@ -176,17 +196,24 @@ extension ScheduleBasicDetailsViewModel {
         deliveryMode = mode
         if mode == .offline {
             webinarType = nil
-            credential = nil
+            credentials = nil
+            selectedCredential = nil
             isCredentialRevealed = false
         }
     }
 
     func didSelectWebinarType(_ type: WebinarType) {
         webinarType = type
-        credential = nil
+        credentials = nil
+        selectedCredential = nil
         isCredentialRevealed = false
         guard type.hasCredentialAPI else { return }
         Task { [weak self] in await self?.fetchCredential(for: type) }
+    }
+
+    func didSelectCredential(_ credential: ScheduleBasicDetailsDataModel.Credential) {
+        selectedCredential = credential
+        isCredentialRevealed = false
     }
 
     func toggleCredentialReveal() {
@@ -201,16 +228,18 @@ extension ScheduleBasicDetailsViewModel {
         let populated = ScheduleDateRules.autoPopulated(forStart: date)
         endDate = populated.end
         registrationEndDate = populated.registrationEnd
+        syncHolidaysForRange()
     }
 
     func didSelectEndDate(_ string: String) {
         guard let date = parse(string) else { return }
-        guard let start = startDate else { endDate = date; return }
+        guard let start = startDate else { endDate = date; syncHolidaysForRange(); return }
         let clamped = ScheduleDateRules.clampedEnd(date, start: start)
         endDate = clamped
         if clamped != date {
             toast = Toast(style: .warning, message: "End date cannot be before start date.")
         }
+        syncHolidaysForRange()
     }
 
     func didSelectRegistrationEndDate(_ string: String) {
@@ -218,16 +247,49 @@ extension ScheduleBasicDetailsViewModel {
         registrationEndDate = date
     }
 
-    func didSelectStartTime(_ string: String) { startTime = string }
-    func didSelectEndTime(_ string: String) { endTime = string }
+    func didSelectStartTime(_ string: String) {
+        startTime = string
+        // A new start can strand an end time that was valid against the old one. Clear it
+        // rather than silently keeping an out-of-order pair; the end field is keyed on
+        // `startTime` in the view, so it visibly resets to its placeholder.
+        if ScheduleDateRules.isEndTimeBeforeOrEqualToStart(start: startTime, end: endTime) {
+            endTime = nil
+            endTimeFieldToken += 1
+            toast = Toast(style: .warning, message: "End time must be after start time. Please pick the end time again.")
+        }
+    }
+
+    func didSelectEndTime(_ string: String) {
+        guard !ScheduleDateRules.isEndTimeBeforeOrEqualToStart(start: startTime, end: string) else {
+            endTimeFieldToken += 1
+            toast = Toast(style: .warning, message: "End time must be later than start time.")
+            return
+        }
+        endTime = string
+    }
 
     // MARK: Holidays
+
+    /// Keeps holiday rows aligned with the current range: a single-day schedule has no
+    /// holidays at all, a wider range keeps in-range markings and drops stale rows.
+    private func syncHolidaysForRange() {
+        guard canSetHolidays, let start = startDate, let end = endDate else {
+            holidays = []
+            holidaysEnabled = false
+            return
+        }
+        holidays = HolidayDay.generate(start: start, end: end, existing: holidays)
+        holidaysEnabled = holidays.contains { $0.isHoliday }
+    }
+
     func toggleHolidays(_ enabled: Bool) {
+        guard canSetHolidays else { holidaysEnabled = false; return }
         holidaysEnabled = enabled
         if enabled { openHolidaysSheet() }
     }
 
     func openHolidaysSheet() {
+        guard canSetHolidays else { return }
         guard let start = startDate, let end = endDate, start <= end else {
             toast = Toast(style: .warning, message: "Select start and end dates first.")
             holidaysEnabled = false
@@ -267,7 +329,13 @@ extension ScheduleBasicDetailsViewModel {
         draft.module = selectedModule
         draft.deliveryMode = deliveryMode
         draft.webinarType = webinarType
-        draft.credential = credential
+        // Keep the selected account first so it remains selected when this step is
+        // recreated and so payload mapping has an unambiguous account to send.
+        if let selectedCredential {
+            draft.credential = [selectedCredential] + (credentials ?? []).filter { $0 != selectedCredential }
+        } else {
+            draft.credential = credentials
+        }
         draft.timezone = selectedTimezone
         draft.startDate = startDate
         draft.endDate = endDate
@@ -313,6 +381,7 @@ extension ScheduleBasicDetailsViewModel {
                 model: ScheduleBasicDetailsDataModel.ModulesByCourseRequest(courseID: courseID)
             )
             modules = results
+            deliveryMode = results.first?.type?.lowercased() == "vilt" ? .online : .offline
             loadingState = .none
             if results.isEmpty {
                 toast = Toast(style: .info, message: "No modules found for this course.")
@@ -336,22 +405,48 @@ extension ScheduleBasicDetailsViewModel {
 
     private func fetchCredential(for type: WebinarType) async {
         let endpointName: String
+        let defaultEndPointName: String
         switch type {
-        case .zoom:        endpointName = "GetZoomCred"
-        case .teams:       endpointName = "GetTeamsCred"
-        case .googleMeet:  endpointName = "GetGsuitCred"
+        case .zoom:
+            endpointName = "GetZoomCred"
+            defaultEndPointName = "GetDefaultzoomCred"
+
+        case .teams:
+            endpointName = "GetTeamsCred"
+            defaultEndPointName = "GetDefaultTeamsCred"
+
+        case .googleMeet:
+            endpointName = "GetGsuitCred"
+            defaultEndPointName = "GetDefaultGsuitCred"
         case .gotoMeeting: return
         }
         loadingState = .loading(message: "Fetching credentials...")
         do {
-            let cred = try await ApiService.shared.requestGetHeader(
+            async let cred = try? ApiService.shared.requestGetHeader(
                 type: ScheduleBasicDetailsDataModel.Credential.self,
                 model: ScheduleBasicDetailsDataModel.CredentialRequest(endpointName: endpointName)
             )
-            credential = cred
-            loadingState = .none
+
+            async let defaultCred = ApiService.shared.requestGetHeader(
+                type: [ScheduleBasicDetailsDataModel.Credential].self,
+                model: ScheduleBasicDetailsDataModel.CredentialRequest(endpointName: defaultEndPointName)
+            )
+
+            let (credentialResult, defaultCredentialResult) = try await (cred, defaultCred)
+            let results = [credentialResult].compactMap { $0 } + defaultCredentialResult
+            credentials = results
+            selectedCredential = results.first
+            loadingState = .loaded
         } catch {
-            handleAPIError(error, resetLoadingState: true, showToast: true)
+            switch error {
+            case let apiError as APIError where apiError == .noData:
+                loadingState = .none
+                return
+            case let apiError as APIError:
+                handleAPIError(apiError.toUIError(), resetLoadingState: true, showToast: true)
+            default:
+                handleAPIError(error, resetLoadingState: true, showToast: true)
+            }
         }
     }
 }

@@ -187,26 +187,72 @@ private extension ScheduleBasicDetailsView {
     }
 
     var credentialCard: some View {
-        CredentialRevealCard(
-            providerTitle: viewModel.webinarType?.displayTitle ?? "",
-            displayValue: viewModel.credentialDisplayValue,
-            username: viewModel.credential?.username,
-            isRevealed: viewModel.isCredentialRevealed,
-            onToggleReveal: { viewModel.toggleCredentialReveal() }
-        )
+        VStack(alignment: .leading, spacing: 10) {
+            if !viewModel.isEditMode, let credentials = viewModel.credentials {
+                CSFieldLabel(title: "Webinar account", isRequired: true)
+                DropDownMenuListViewPkg(
+                    credentials,
+                    placeholder: "Select webinar account",
+                    selectedOption: viewModel.selectedCredential,
+                    isSearchable: false,
+                    onSelection: { viewModel.didSelectCredential($0) }
+                )
+                .zIndex(2)
+            }
+
+            CredentialRevealCard(
+                providerTitle: viewModel.webinarType?.displayTitle ?? "",
+                displayValue: viewModel.credentialDisplayValue,
+                username: viewModel.selectedCredential?.username,
+                isRevealed: viewModel.isCredentialRevealed,
+                onToggleReveal: { viewModel.toggleCredentialReveal() }
+            )
+            .zIndex(1)
+        }
     }
 
+    /// The dropdown is withheld until the timezone list has loaded.
+    /// `DropDownMenuListViewPkg` force-opens its menu whenever a *searchable* option set
+    /// goes from empty to non-empty — that hook is what makes course/trainer search
+    /// results pop open as they arrive. The timezone list is not typed into; it is
+    /// fetched once in `loadData()`, so mounting the control while empty tripped that
+    /// same hook and sprang the menu open with no user interaction. Mounting only once
+    /// the options exist means the control never observes the transition. It also keeps
+    /// the edit-mode preselection, since the control snapshots `selectedOption` into
+    /// `@State` at init and would otherwise capture a nil timezone.
+    @ViewBuilder
     var timezoneField: some View {
         VStack(alignment: .leading, spacing: 6) {
             CSFieldLabel(title: "Time zone")
-            DropDownMenuListViewPkg(
-                viewModel.timezones,
-                placeholder: "Select time zone",
-                selectedOption: viewModel.selectedTimezone,
-                isSearchable: true,
-                onSelection: { viewModel.selectedTimezone = $0 }
-            )
+            if viewModel.timezones.isEmpty {
+                timezonePlaceholder
+            } else {
+                DropDownMenuListViewPkg(
+                    viewModel.timezones,
+                    placeholder: "Select time zone",
+                    selectedOption: viewModel.selectedTimezone,
+                    isSearchable: true,
+                    onSelection: { viewModel.selectedTimezone = $0 }
+                )
+            }
         }
+    }
+
+    /// Inert stand-in matching the dropdown's footprint so the form does not reflow
+    /// when the real control takes its place.
+    var timezonePlaceholder: some View {
+        HStack {
+            Text("Loading time zones\u{2026}")
+                .font(.headline)
+                .foregroundColor(.secondary)
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 45)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color(.systemGray4), lineWidth: 1)
+        )
     }
 
     var dateRow: some View {
@@ -245,6 +291,11 @@ private extension ScheduleBasicDetailsView {
                 initialTimeString: viewModel.endTime,
                 onTimeSelected: { viewModel.didSelectEndTime($0) }
             )
+            // The picker commits the tapped time to its own state before handing it over,
+            // so a refused end time would stay on screen. Keying on the view model's token
+            // rebuilds the field from the model whenever a selection is rejected or
+            // cleared. Same remount trick as the end-date field above.
+            .id("end-time-\(viewModel.endTimeFieldToken)")
         }
     }
 
@@ -293,7 +344,12 @@ private extension ScheduleBasicDetailsView {
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
         .contentShape(Rectangle())
-        .onTapGesture { viewModel.openHolidaysSheet() }
+        .opacity(viewModel.canSetHolidays ? 1 : 0.55)
+        .onTapGesture {
+            guard viewModel.canSetHolidays else { return }
+            viewModel.openHolidaysSheet()
+        }
+        .disabled(!viewModel.canSetHolidays)
     }
 
     var footer: some View {

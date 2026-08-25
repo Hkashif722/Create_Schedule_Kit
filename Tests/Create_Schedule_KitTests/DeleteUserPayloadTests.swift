@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import SwiftfulRouting
 import SwiftUIUtilities
 @testable import Create_Schedule_Kit
 
@@ -43,6 +44,51 @@ import SwiftUIUtilities
         // camelCase variants must not appear — the server ignores them.
         #expect(object["userMasterId"] == nil)
         #expect(object["scheduleId"] == nil)
+    }
+
+    /// Delete is gated on the row carrying an overall status; a blank one must not pass.
+    @Test(arguments: [
+        (String?.none, false),
+        (.some(""), false),
+        (.some("   "), false),
+        (.some("Completed"), true),
+        (.some("NotStarted"), true)
+    ] as [(String?, Bool)])
+    func attendanceDeleteIsGatedOnOverAllStatus(status: String?, canDelete: Bool) {
+        #expect(attendanceUser(overAllStatus: status).hasOverAllStatus == canDelete)
+    }
+
+    /// Delete is a single-row action, but the copy follows the current selection count.
+    @MainActor
+    @Test(arguments: [
+        (0, "user as attendance status is"),
+        (1, "user as attendance status is"),
+        (2, "users as attendance statuses are"),
+        (5, "users as attendance statuses are")
+    ])
+    func missingStatusMessagePluralizesOnSelectionCount(selected: Int, fragment: String) {
+        let viewModel = AttendanceViewModel(
+            router: RouterEnvironmentKey.defaultValue,
+            navModel: .init(
+                scheduleID: 3787, courseID: 56288, moduleID: 42182,
+                courseName: "Course", moduleName: "Module",
+                scheduleCode: "SC8432", dateRangeText: "Aug 17, 2026"
+            )
+        )
+        (1...max(selected, 1)).prefix(selected).forEach {
+            viewModel.toggle(attendanceUser(id: $0, overAllStatus: nil))
+        }
+
+        #expect(viewModel.missingStatusMessage == "Cannot delete attendance for the selected \(fragment) not present.")
+    }
+
+    private func attendanceUser(id: Int = 1, overAllStatus: String?) -> AttendanceDataModel.AttendanceUser {
+        .init(
+            id: id, scheduleID: 3787, userId: "akk", userName: "AKK",
+            emailId: "ak2@gmail.com", mobileNumber: nil, isPresent: false,
+            moduleID: 42182, courseID: 56288,
+            overAllStatus: overAllStatus, attendanceStatus: nil, attendanceDate: nil
+        )
     }
 
     @Test func attendanceDeleteResponseDecodesAsBareBool() throws {

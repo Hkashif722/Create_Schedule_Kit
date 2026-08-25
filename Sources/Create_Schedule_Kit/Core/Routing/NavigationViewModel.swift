@@ -46,6 +46,17 @@ extension NavigationViewModel {
         let dateRangeText: String
     }
 
+    // MARK: - Cancel schedule bottom sheet
+    // Opened from a schedule card's Cancel Schedule action. `onCancelled` fires after a successful
+    // cancellation so the list — which is still on screen — owns the success toast and the reload;
+    // the sheet's own view model is torn down at dismissal and its toast overlay with it.
+    struct CancelScheduleNavModel {
+        let scheduleID: Int
+        let scheduleCode: String
+        let moduleName: String
+        let onCancelled: () -> Void
+    }
+
     // MARK: - Nominate users bottom sheet
     // Presented after a schedule is created (if the creator opts to nominate). Carries the
     // just-created schedule's identifiers; `onComplete` finishes the wizard afterwards.
@@ -55,13 +66,35 @@ extension NavigationViewModel {
         let moduleID: Int
         let scheduleID: Int?
         let onComplete: () -> Void
-        
-        init(scheduleCode: String, courseID: Int, moduleID: Int, scheduleID: Int? = nil, onComplete: @escaping () -> Void) {
+        /// Supplied only when Nominate is embedded in the Update Attendance screen. Its
+        /// presence switches the submit from the nomination API to a direct attendance
+        /// insert — a back-dated schedule cannot be nominated for. A closure rather than a
+        /// snapshot so the date/status read stays live across the tab's teardown/recreate.
+        let attendanceContext: (() -> NominateAttendanceContext)?
+
+        init(scheduleCode: String,
+             courseID: Int,
+             moduleID: Int,
+             scheduleID: Int? = nil,
+             onComplete: @escaping () -> Void,
+             attendanceContext: (() -> NominateAttendanceContext)? = nil) {
             self.scheduleCode = scheduleCode
             self.courseID = courseID
             self.moduleID = moduleID
             self.scheduleID = scheduleID
             self.onComplete = onComplete
+            self.attendanceContext = attendanceContext
         }
+    }
+
+    /// Identifiers plus the attendance date/status picked on the Attendance tab, used to
+    /// build the `ILTTrainingAttendance` insert body. `date`/`statusCode` stay optional
+    /// even though the tab switch gates them — the view model must not trust the view.
+    struct NominateAttendanceContext {
+        let scheduleID: Int
+        let moduleID: Int
+        let courseID: Int
+        let date: Date?
+        let statusCode: String?
     }
 }

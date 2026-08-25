@@ -13,9 +13,13 @@ struct ScheduleLogisticsView: View {
 
     @StateObject private var viewModel: ScheduleLogisticsViewModel
     private let router: AnyRouter
+    /// True when the Feedback step is switched off org-wide and this step submits the
+    /// schedule instead of advancing — only the primary button's wording changes here.
+    private let isFinalStep: Bool
 
-    init(router: AnyRouter, draft: ScheduleDraft, isEditMode: Bool = false, onBack: @escaping () -> Void, onContinue: @escaping () -> Void) {
+    init(router: AnyRouter, draft: ScheduleDraft, isEditMode: Bool = false, isFinalStep: Bool = false, onBack: @escaping () -> Void, onContinue: @escaping () -> Void) {
         self.router = router
+        self.isFinalStep = isFinalStep
         _viewModel = StateObject(
             wrappedValue: ScheduleLogisticsViewModel(
                 router: router, draft: draft, isEditMode: isEditMode, onBack: onBack, onContinue: onContinue
@@ -231,6 +235,8 @@ private extension ScheduleLogisticsView {
 
     var footer: some View {
         CSNavFooter(
+            nextTitle: isFinalStep ? (viewModel.isEditMode ? "Update Schedule" : "Create Schedule") : "Next",
+            nextSystemImage: isFinalStep ? nil : "arrow.right",
             isNextEnabled: viewModel.canContinue,
             onBack: { viewModel.didTapBack() },
             onNext: { viewModel.didTapContinue() }

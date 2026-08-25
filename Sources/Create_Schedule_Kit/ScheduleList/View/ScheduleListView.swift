@@ -31,6 +31,7 @@ struct ScheduleListView: View {
                     set: { viewModel.selectTab($0) }
                 )
             )
+            filterRow.zIndex(1)
             searchBar
             content
         }
@@ -47,7 +48,7 @@ private extension ScheduleListView {
 
     var header: some View {
         ZStack {
-            Text("Scheduler")
+            Text("ILT Schedule")
                 .font(.system(size: 20, weight: .bold))
                 .frame(maxWidth: .infinity, alignment: .center)
 
@@ -80,51 +81,77 @@ private extension ScheduleListView {
         .background(Color(.systemBackground))
     }
 
+    /// Which column the search box filters on — mirrors the web client's "Filter" dropdown.
+    var filterRow: some View {
+        HStack(spacing: 10) {
+            DropDownMenuListViewPkg(
+                ScheduleListDataModel.FilterColumn.allCases,
+                placeholder: "Select",
+                selectedOption: viewModel.filterColumn,
+                isSearchable: false,
+                controlHeight: 44,
+                maxContentHeight: 300,
+                font: .system(size: 15),
+                onSelection: { viewModel.selectFilterColumn($0) }
+            )
+        }
+        .padding(.horizontal)
+        .padding(.top, 12)
+        .background(Color(.systemBackground))
+    }
+
     var searchBar: some View {
         HStack(spacing: 10) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundColor(.secondary)
-                TextField("Search schedules…", text: $viewModel.searchText)
+                TextField(viewModel.searchPlaceholder, text: $viewModel.searchText)
                     .font(.system(size: 15))
+                    .autocorrectionDisabled()
                     .onChange(of: viewModel.searchText) { newValue in
                         viewModel.onSearchChanged(newValue)
                     }
+                // Searching reports itself here rather than behind a full-screen overlay.
+                if viewModel.isSearching {
+                    ProgressView().scaleEffect(0.8)
+                } else if !viewModel.searchText.isEmpty {
+                    Button {
+                        viewModel.searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
             .padding(12)
             .background(Color(.systemGray6))
             .cornerRadius(12)
-
-            // Advanced filter — not yet designed. Placeholder affordance.
-            Button {
-                // TODO: advanced filter sheet (pending design).
-            } label: {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(ColorUtility.primaryColor)
-                    .frame(width: 52, height: 52)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color(.systemGray4), lineWidth: 1)
-                    )
-            }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal)
-        .padding(.vertical, 12)
+        .padding(.top, 10)
+        .padding(.bottom, 12)
         .background(Color(.systemBackground))
     }
 
     @ViewBuilder
     var content: some View {
         if viewModel.loadingState.isLoading && viewModel.items.isEmpty {
-            Spacer()
-            ProgressView()
-            Spacer()
+            spinner
         } else if viewModel.displayItems.isEmpty {
-            emptyState
+            // The tab can still be filling itself from later pages, and a search reload empties
+            // the rows before the results land — don't claim it's empty yet in either case.
+            if viewModel.isFillingTab || viewModel.isSearching { spinner } else { emptyState }
         } else {
             list
         }
+    }
+
+    var spinner: some View {
+        VStack {
+            Spacer()
+            ProgressView()
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
     }
 
     var list: some View {
@@ -133,9 +160,11 @@ private extension ScheduleListView {
                 ForEach(viewModel.displayItems) { schedule in
                     ScheduleCardView(
                         schedule: schedule,
+                        participants: viewModel.participantCount(for: schedule),
                         onViewDetails: { viewModel.didTapViewDetails(schedule) },
                         onAttendance: { viewModel.didTapAttendance(schedule) },
-                        onEdit: { viewModel.didTapEdit(schedule) }
+                        onEdit: { viewModel.didTapEdit(schedule) },
+                        onCancel: { viewModel.didTapCancel(schedule) }
                     )
                     .onAppear { viewModel.loadMoreIfNeeded(currentItem: schedule) }
                 }
@@ -153,7 +182,7 @@ private extension ScheduleListView {
             Image(systemName: "calendar.badge.exclamationmark")
                 .font(.system(size: 30, weight: .semibold))
                 .foregroundColor(.secondary)
-            Text("No schedules found")
+            Text(viewModel.selectedTab == .completed ? "No completed schedules" : "No upcoming schedules")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(.secondary)
             Spacer()

@@ -99,7 +99,18 @@ private extension AttendanceView {
                 scheduleCode: viewModel.navModel.scheduleCode,
                 courseID: viewModel.navModel.courseID,
                 moduleID: viewModel.navModel.moduleID,
-                onComplete: {}
+                onComplete: { viewModel.reloadAfterNomination() },
+                // Presence of this context switches the nominate submit to a direct
+                // attendance insert. No cycle: the attendance VM never holds the nominate one.
+                attendanceContext: {
+                    .init(
+                        scheduleID: viewModel.navModel.scheduleID,
+                        moduleID: viewModel.navModel.moduleID,
+                        courseID: viewModel.navModel.courseID,
+                        date: viewModel.selectedDate,
+                        statusCode: viewModel.selectedStatus?.valueCode
+                    )
+                }
             ),
             isEmbedded: true
         )

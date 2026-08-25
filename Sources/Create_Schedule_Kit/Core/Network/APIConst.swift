@@ -29,6 +29,8 @@ internal struct APIConst {
     static let count = "count"
     static let getScheduleDetailsByID = "GetScheduleDetailsByID"
     static let updateILTScheduleWithMeeting = "UpdateILTScheduleWithMeeting"
+    static let cancellationSchedule = "CancellationSchedule"
+    static let getNominationCountDetails = "GetNominationCountDetails"
 
     // MARK: - TrainingPlace
     static let trainingPlace = "TrainingPlace"
@@ -48,6 +50,7 @@ internal struct APIConst {
     static let getRoleCourseNameTypeAhead = "GetRoleCourseNameTypeAhead"
     static let getByModuleId = "GetByModuleId"
     static let getUsersCountForNomination = "GetUsersCountForNomination"
+    static let getNominateUserCount = "GetNominateUserCount"
     static let getUsersForNominationV2 = "GetUsersForNominationV2"
     static let nominateUser = "NominateUser"
     static let deleteUserNomination = "DeleteUserNomination"
@@ -67,8 +70,8 @@ internal struct APIConst {
     static let iltTrainingAttendance = "ILTTrainingAttendance"
     static let getUsersForAttendance = "GetUsersForAttendance"
     static let getUsersCountForAttendance = "GetUsersCountForAttendance"
-    static let updateILTTrainingAttendance = "UpdateILTTrainingAttendance"
     static let attendanceDelete = "AttendanceDelete"
+    static let getDetailsForUserAttendance = "GetDetailsForUserAttendance"
 
     // MARK: - ConfigurableParameters
     static let configurableParameters = "ConfigurableParameters"

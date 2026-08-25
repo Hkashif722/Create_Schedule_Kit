@@ -24,10 +24,12 @@ struct CreateScheduleWizardView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            CSStepTracker(steps: viewModel.stepLabels, currentStep: viewModel.currentStep)
-                .padding(.horizontal)
-                .padding(.vertical, 14)
-                .background(Color(.systemBackground))
+            if viewModel.isReady {
+                CSStepTracker(steps: viewModel.stepLabels, currentStep: viewModel.currentStep)
+                    .padding(.horizontal)
+                    .padding(.vertical, 14)
+                    .background(Color(.systemBackground))
+            }
 
             stepContent
         }
@@ -41,8 +43,9 @@ struct CreateScheduleWizardView: View {
     @ViewBuilder
     private var stepContent: some View {
         // Steps copy the draft in their view-model inits, so in edit mode nothing
-        // renders until the fetched schedule has hydrated the draft.
-        if !viewModel.isHydrated {
+        // renders until the fetched schedule has hydrated the draft. The Feedback
+        // config decides how many steps there are, so it gates rendering too.
+        if !viewModel.isReady {
             Color.clear
         } else {
             switch viewModel.currentStep {
@@ -59,6 +62,9 @@ struct CreateScheduleWizardView: View {
                     router: router,
                     draft: viewModel.draft,
                     isEditMode: viewModel.mode.isEdit,
+                    // With feedback switched off Venue is the last step, so its primary
+                    // action submits instead of advancing.
+                    isFinalStep: !viewModel.isFeedbackEnabled,
                     onBack: viewModel.goBack,
                     onContinue: viewModel.goNext
                 )

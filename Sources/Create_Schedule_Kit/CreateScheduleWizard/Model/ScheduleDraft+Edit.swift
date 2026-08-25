@@ -50,9 +50,11 @@ extension ScheduleDraft {
             }
         }
         if let account = details.webinarAccount, !account.isEmpty {
-            credential = ScheduleBasicDetailsDataModel.Credential(
-                id: nil, teamsEmail: account, username: nil, password: nil, isDefault: nil
-            )
+            credential = [
+                ScheduleBasicDetailsDataModel.Credential(
+                    id: nil, teamsEmail: account, username: nil, password: nil, isDefault: nil
+                )
+            ]
         }
         if let tz = details.timezone, !tz.isEmpty {
             // Dropdown selection matches by `id == value`, so a synthesized fallback

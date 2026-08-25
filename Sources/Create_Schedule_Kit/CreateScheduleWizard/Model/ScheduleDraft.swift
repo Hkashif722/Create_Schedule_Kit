@@ -27,13 +27,13 @@ enum WizardMode: Equatable {
 }
 
 enum DeliveryMode: String, CaseIterable {
-    case online
     case offline
+    case online
 
     var displayTitle: String {
         switch self {
-        case .online:  return "Online"
         case .offline: return "Offline"
+        case .online:  return "Online"
         }
     }
 }
@@ -88,10 +88,15 @@ struct HolidayDay: Identifiable, Equatable {
     let date: Date
     var isHoliday: Bool
     var label: String    // "Holiday" / "Weekend" / custom name
+    var isLocked: Bool = false   // the range's first/last day — always a working day
 
     /// Generates one row per day in [start, end]. Weekends default to holidays
     /// labelled "Weekend"; weekdays default to working days labelled "Holiday".
     /// Any matching existing rows (same calendar day) are preserved.
+    ///
+    /// The first and last day of the range are the exception: the schedule has to run on
+    /// its own boundary days, so they are always emitted as locked working days — the
+    /// weekend default and any existing (or API-supplied) marking are both ignored there.
     static func generate(start: Date, end: Date, existing: [HolidayDay] = []) -> [HolidayDay] {
         let calendar = Calendar.current
         let startDay = calendar.startOfDay(for: start)
@@ -104,8 +109,11 @@ struct HolidayDay: Identifiable, Equatable {
         while cursor <= endDay {
             let weekday = calendar.component(.weekday, from: cursor) // 1 = Sunday, 7 = Saturday
             let isWeekend = (weekday == 1 || weekday == 7)
+            let isEdge = (cursor == startDay || cursor == endDay)
 
-            if let match = existing.first(where: { calendar.isDate($0.date, inSameDayAs: cursor) }) {
+            if isEdge {
+                rows.append(HolidayDay(id: index, date: cursor, isHoliday: false, label: "Holiday", isLocked: true))
+            } else if let match = existing.first(where: { calendar.isDate($0.date, inSameDayAs: cursor) }) {
                 rows.append(HolidayDay(id: index, date: cursor, isHoliday: match.isHoliday, label: match.label))
             } else {
                 rows.append(HolidayDay(id: index, date: cursor, isHoliday: isWeekend, label: isWeekend ? "Weekend" : "Holiday"))
@@ -127,9 +135,9 @@ final class ScheduleDraft {
     var scheduleCode: String = ""
     var course: ScheduleBasicDetailsDataModel.Course?
     var module: ScheduleBasicDetailsDataModel.ModuleItem?
-    var deliveryMode: DeliveryMode = .online
+    var deliveryMode: DeliveryMode = .offline
     var webinarType: WebinarType?
-    var credential: ScheduleBasicDetailsDataModel.Credential?
+    var credential: [ScheduleBasicDetailsDataModel.Credential]?
     var timezone: ScheduleBasicDetailsDataModel.TimezoneItem?
     var startDate: Date?
     var endDate: Date?

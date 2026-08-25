@@ -6,12 +6,14 @@
 //
 //   • ILTSchedule/GetScheduleData            → [Schedule]  (paginated list)
 //   • ILTSchedule/count/{s}/{st}/{showAll}   → Int         (total count, parallel)
+//   • TrainingNomination/GetNominateUserCount → Int        (participants per schedule)
 //   • ConfigurableParameters/GetValue/{key}  → ConfigValueResponse
 //   • i/ILTBatch/IsBatchwiseNominationEnabled → reused from NominateUsersDataModel
 //
 
 import Foundation
 import NetworkService
+import SwiftUIUtilities
 
 enum ScheduleListDataModel {
 
@@ -31,12 +33,24 @@ enum ScheduleListDataModel {
     struct ScheduleCountRequest: EndpointModel {
         var search: String = "null"
         var searchText: String = "null"
-        var showAllData: String = "false"
+        /// `"true"` mirrors `ListPayload.showAllData` — with `"false"` the server withholds
+        /// past schedules, so the count would disagree with the list on the Completed tab.
+        var showAllData: String = "true"
         var path: String {
             [APIConst.courseBaseUrl, APIConst.versionAPI, APIConst.iltSchedule, APIConst.count,
              search, searchText, showAllData].joined(separator: "/")
         }
         var method: HTTPMethod { .get }
+        var headers: [String: String]? { nil }
+    }
+
+    /// POST — nominated participant count for one schedule. Returns a bare `Int`.
+    struct GetNominateUserCountRequest: EndpointModel {
+        var path: String {
+            [APIConst.courseBaseUrl, APIConst.versionAPI, APIConst.trainingNomination,
+             APIConst.getNominateUserCount].joined(separator: "/")
+        }
+        var method: HTTPMethod { .post }
         var headers: [String: String]? { nil }
     }
 
@@ -69,10 +83,94 @@ enum ScheduleListDataModel {
         }
     }
 
+    /// Body for `GetNominateUserCount`. The API expects the nullable filter keys to be
+    /// present as JSON `null`, so these values are encoded explicitly rather than omitted.
+    struct NominateUserCountPayload: Encodable {
+        let scheduleID: Int
+        let courseId: Int
+        let moduleId: Int
+        let page: Int
+        let pageSize: Int
+        let search: String
+        let searchText: String?
+        let search1: String?
+        let searchText1: String?
+        let type: String?
+
+        enum CodingKeys: String, CodingKey {
+            case scheduleID, courseId, moduleId, page, pageSize
+            case search, searchText, search1, searchText1
+            case type = "Type"
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(scheduleID, forKey: .scheduleID)
+            try container.encode(courseId, forKey: .courseId)
+            try container.encode(moduleId, forKey: .moduleId)
+            try container.encode(page, forKey: .page)
+            try container.encode(pageSize, forKey: .pageSize)
+            try container.encode(search, forKey: .search)
+            try container.encodeOptional(searchText, forKey: .searchText)
+            try container.encodeOptional(search1, forKey: .search1)
+            try container.encodeOptional(searchText1, forKey: .searchText1)
+            try container.encodeOptional(type, forKey: .type)
+        }
+    }
+
+    // MARK: - Search
+
+    /// Column the search box filters on — the package mirror of the web client's "Filter"
+    /// dropdown. The value goes out as `Search` in `ListPayload`, paired with `searchText`:
+    /// `{"Page":1,"PageSize":10,"Search":"moduleName","searchText":"aa"}`. Sending the text
+    /// without a column is ignored by the server, so the two always travel together.
+    ///
+    /// Only `moduleName` is confirmed against a captured request; the rest follow the same
+    /// field-name convention as the `Schedule` DTO. If the server rejects one, the fix is the
+    /// `apiValue` below and nothing else.
+    enum FilterColumn: String, CaseIterable, Identifiable, DropDownMenuProtocolPkg {
+        case moduleName
+        case scheduleCode
+        case courseName
+        case academyName
+        case scheduleType
+        case createdBy
+
+        var id: String { rawValue }
+
+        /// Label shown in the dropdown — matches the web wording.
+        var title: String {
+            switch self {
+            case .moduleName:   return "Module Name"
+            case .scheduleCode: return "Schedule Code"
+            case .courseName:   return "Course Name"
+            case .academyName:  return "Academy Name"
+            case .scheduleType: return "Schedule Type"
+            case .createdBy:    return "Created By"
+            }
+        }
+
+        var description: String { title }
+
+        /// Value sent as `Search`.
+        var apiValue: String {
+            switch self {
+            case .academyName: return "academyAgencyName"
+            default:           return rawValue
+            }
+        }
+    }
+
     // MARK: - Response / domain models
 
     struct ConfigValueResponse: Decodable {
         let value: String?
+
+        /// Config flags come back as `{"value":"Yes"}` / `{"value":"No"}`. Anything that is
+        /// not an explicit "Yes" — including a missing value — reads as off.
+        var isYes: Bool {
+            (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "yes"
+        }
     }
 
     /// A schedule row. Only the fields shown on the card are mapped (plus `id`).
@@ -110,16 +208,19 @@ enum ScheduleListDataModel {
     }
 }
 
+private extension KeyedEncodingContainer {
+    mutating func encodeOptional<T: Encodable>(_ value: T?, forKey key: Key) throws {
+        if let value {
+            try encode(value, forKey: key)
+        } else {
+            try encodeNil(forKey: key)
+        }
+    }
+}
+
 // MARK: - Display helpers
 
 extension ScheduleListDataModel.Schedule {
-
-    private static let apiDateFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-        f.locale = Locale(identifier: "en_US_POSIX")
-        return f
-    }()
 
     private static let apiTimeFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -135,7 +236,7 @@ extension ScheduleListDataModel.Schedule {
 
     /// "27 Jun 2026"
     var dateText: String {
-        guard let raw = startDate, let date = Self.apiDateFormatter.date(from: raw) else { return "" }
+        guard let date = ScheduleDraft.parseAPIDate(startDate) else { return "" }
         return date.formatted(using: "dd MMM yyyy")
     }
 
@@ -157,7 +258,7 @@ extension ScheduleListDataModel.Schedule {
     }
 
     private static func mediumDate(_ raw: String?) -> String {
-        guard let raw, let date = apiDateFormatter.date(from: raw) else { return "" }
+        guard let date = ScheduleDraft.parseAPIDate(raw) else { return "" }
         return date.formatted(using: "MMM dd, yyyy")
     }
 
@@ -169,10 +270,36 @@ extension ScheduleListDataModel.Schedule {
             .joined(separator: " · ")
     }
 
-    /// Parsed end date for the Upcoming/Completed tab filter.
+    /// Parsed end date for the Upcoming/Completed tab filter. Uses the tolerant parser for the
+    /// same reason `registrationEndDateValue` does — the API sometimes sends a date-only value
+    /// (`"2026-08-14"`), and an unparseable end date here forces the row into Upcoming, which is
+    /// what kept finished schedules out of the Completed tab.
     var endDateValue: Date? {
-        guard let raw = endDate else { return nil }
-        return Self.apiDateFormatter.date(from: raw)
+        ScheduleDraft.parseAPIDate(endDate)
+    }
+
+    /// Parsed registration end date, used to gate cancellation. An unparseable value here closes
+    /// the window and would block cancelling outright.
+    var registrationEndDateValue: Date? {
+        ScheduleDraft.parseAPIDate(registrationEndDate)
+    }
+
+    /// Whether registration is still open — a schedule cannot be cancelled after its registration
+    /// end date. Day-granular on both sides, so the registration-end day itself still counts as
+    /// open. A missing or unparseable date reads as closed.
+    var isWithinRegistrationWindow: Bool {
+        guard let regEnd = registrationEndDateValue else { return false }
+        let calendar = Calendar.current
+        return calendar.startOfDay(for: Date()) <= calendar.startOfDay(for: regEnd)
+    }
+
+    /// A cancelled schedule is read-only: it can be viewed but not edited, attended or cancelled
+    /// again. The server reports this through `scheduleType` ("Scheduled" vs. a cancelled variant),
+    /// so the match is a case-insensitive substring rather than an equality check — the exact
+    /// spelling ("Cancelled" / "Canceled" / "Cancellation") differs across endpoints.
+    var isCancelled: Bool {
+        guard let type = scheduleType else { return false }
+        return type.lowercased().contains("cancel")
     }
 
     var participants: Int { participantsCount ?? 0 }
@@ -182,10 +309,14 @@ extension ScheduleListDataModel.Schedule {
     /// Big title on the detail header (course name, falling back to module / code).
     var detailTitle: String { courseName ?? moduleName ?? scheduleCode ?? "Schedule" }
 
-    /// Upcoming vs completed, from the end date.
+    /// Day-granular Upcoming/Completed split from the end date — the single source of truth for
+    /// both the list tabs (`ScheduleListViewModel.displayItems`) and the detail header pill. A
+    /// schedule ending today is still upcoming; it moves to Completed tomorrow. An unparseable
+    /// end date reads as upcoming.
     var isUpcoming: Bool {
         guard let end = endDateValue else { return true }
-        return end >= Calendar.current.startOfDay(for: Date())
+        let calendar = Calendar.current
+        return calendar.startOfDay(for: end) >= calendar.startOfDay(for: Date())
     }
     var statusText: String { isUpcoming ? "Upcoming" : "Completed" }
 
@@ -198,7 +329,7 @@ extension ScheduleListDataModel.Schedule {
 
     /// "24 Jun 2026"
     var regEndText: String {
-        guard let raw = registrationEndDate, let date = Self.apiDateFormatter.date(from: raw) else { return "" }
+        guard let date = registrationEndDateValue else { return "" }
         return date.formatted(using: "dd MMM yyyy")
     }
 

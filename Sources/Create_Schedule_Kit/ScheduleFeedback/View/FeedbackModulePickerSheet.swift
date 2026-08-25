@@ -46,7 +46,7 @@ struct FeedbackModulePickerSheet: View {
 
     @ViewBuilder
     private var content: some View {
-        if viewModel.loadingState.isLoading && viewModel.items.isEmpty {
+        if (viewModel.loadingState.isLoading || viewModel.isSearching) && viewModel.items.isEmpty {
             Spacer()
             ProgressView()
             Spacer()
@@ -116,9 +116,19 @@ struct FeedbackModulePickerSheet: View {
             Image(systemName: "magnifyingglass").foregroundColor(.secondary)
             TextField("Search module…", text: $viewModel.searchText)
                 .font(.system(size: 15))
+                .autocorrectionDisabled()
                 .onChange(of: viewModel.searchText) { newValue in
                     viewModel.onSearchChanged(newValue)
                 }
+            // Searching reports itself here rather than behind a full-screen overlay.
+            if viewModel.isSearching {
+                ProgressView().scaleEffect(0.8)
+            } else if !viewModel.searchText.isEmpty {
+                Button { viewModel.searchText = "" } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(12)
         .background(Color(.systemGray6))

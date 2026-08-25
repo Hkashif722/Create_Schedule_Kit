@@ -195,11 +195,11 @@ extension CreateScheduleWizardDataModel.Payload {
             )
         }
 
-        // Always send a row per day in the range. Use marked holidays if present, else regenerate.
+        // Always send a row per day in the range, normalized through the generator so the
+        // markings line up with the current dates and the boundary days stay working days.
         let holidayRows: [HolidayDay] = {
-            if !draft.holidays.isEmpty { return draft.holidays }
-            guard let start = draft.startDate, let end = draft.endDate else { return [] }
-            return HolidayDay.generate(start: start, end: end)
+            guard let start = draft.startDate, let end = draft.endDate else { return draft.holidays }
+            return HolidayDay.generate(start: start, end: end, existing: draft.holidays)
         }()
         let holidays: [DM.HolidayDTO] = holidayRows.map { row in
             DM.HolidayDTO(
@@ -240,13 +240,14 @@ extension CreateScheduleWizardDataModel.Payload {
             timezone: draft.timezone?.value ?? "",
             isWebinar: isWebinar,
             webinarType: isWebinar ? draft.webinarType?.rawValue : nil,
-            webinarAccount: isWebinar ? draft.credential?.teamsEmail : nil
+            webinarAccount: isWebinar ? draft.credential?.first?.teamsEmail : nil
         )
     }
 
     /// `2026-06-24T00:00:00.000Z` — the picked calendar day at UTC-midnight, matching the web payload.
+    /// Shared with the attendance insert body, so the format lives on `Date`.
     static func isoDate(_ date: Date) -> String {
-        formatter(format: "yyyy-MM-dd'T'00:00:00.000'Z'").string(from: date)
+        date.isoDayStartUTCString
     }
 
     /// `2026-06-24` — used inside `holidayList`.

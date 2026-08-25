@@ -24,6 +24,11 @@ final class NominateUsersViewModel: BaseViewModel, PaginatableViewModel {
     // MARK: - Dependencies
     private let navModel: NavigationViewModel.NominateUsersNavModel
     private var courseId: Int { navModel.courseID }
+    /// Non-nil only when embedded in Update Attendance. Read through the closure each time
+    /// so the date/status reflect the Attendance tab's current selection.
+    private var attendanceContext: NavigationViewModel.NominateAttendanceContext? {
+        navModel.attendanceContext?()
+    }
     private let searchDebouncer = Debouncer<String>(interval: 0.3)
 
     // MARK: - PaginatableViewModel state
@@ -154,6 +159,10 @@ extension NominateUsersViewModel {
         }
     }
 
+    func clearSelection() {
+        selectedUsers.removeAll()
+    }
+
     func loadMoreIfNeeded(currentItem: User) {
         guard shouldLoadMore(currentItem: currentItem) else { return }
         Task { [weak self] in await self?.loadMore() }
@@ -164,11 +173,35 @@ extension NominateUsersViewModel {
 extension NominateUsersViewModel {
 
     func didTapCancel() {
+        // Embedded in the Attendance tab there is no screen of our own to pop — dismissing
+        // would tear down the host Update Attendance screen — so just drop the selection.
+        guard attendanceContext == nil else {
+            clearSelection()
+            return
+        }
         finishFlow()
     }
 
     func didTapNominate() {
         guard isNominateEnabled else { return }
+
+        // Reached from Update Attendance: a back-dated schedule cannot be nominated for,
+        // so the selected users are inserted straight into attendance instead.
+        if let context = attendanceContext {
+            guard let date = context.date else {
+                toast = Toast(style: .warning, message: "Please select the attendance date.")
+                return
+            }
+            guard let statusCode = context.statusCode, !statusCode.isEmpty else {
+                toast = Toast(style: .warning, message: "Please select the attendance status.")
+                return
+            }
+            Task { [weak self] in
+                await self?.submitAttendance(context: context, date: date, statusCode: statusCode)
+            }
+            return
+        }
+
         guard let scheduleID, let iltModuleId else {
             toast = Toast(style: .error, message: "Schedule details are still loading. Please try again.")
             return
@@ -273,15 +306,32 @@ extension NominateUsersViewModel {
             guard let moduleId = module?.id else { return }
             iltModuleId = moduleId
 
-            let schedules = try await ApiService.shared.requestGetHeader(
-                type: [NominateUsersDataModel.ModuleSchedule].self,
-                model: NominateUsersDataModel.GetByModuleIdRequest(moduleId: moduleId, courseId: courseId)
-            )
-            // Fall back to the ILT module id when no schedule row is returned yet.
-            scheduleID = schedules.first?.id ?? moduleId
-            Logger.shared.log(.info, message: "Nominate: iltModuleId=\(moduleId), scheduleID=\(scheduleID ?? -1)")
+            do {
+                let schedules = try await ApiService.shared.requestGetHeader(
+                    type: [NominateUsersDataModel.ModuleSchedule].self,
+                    model: NominateUsersDataModel.GetByModuleIdRequest(moduleId: moduleId, courseId: courseId)
+                )
+                // Fall back to the ILT module id when no schedule row is returned yet.
+                scheduleID = schedules.first?.id ?? moduleId
+                Logger.shared.log(.info, message: "Nominate: iltModuleId=\(moduleId), scheduleID=\(scheduleID ?? -1)")
+            } catch {
+                switch error {
+                case let apiError as APIError where apiError == .noData:
+                    scheduleID =  moduleId
+                case let apiError as APIError:
+                    handleAPIError(apiError.toUIError(), resetLoadingState: false, showToast: true)
+                default:
+                    handleAPIError(error, resetLoadingState: false, showToast: true)
+                }
+            }
+            
         } catch {
-            handleAPIError(error, resetLoadingState: false, showToast: true)
+            switch error {
+            case let apiError as APIError:
+                handleAPIError(apiError.toUIError(), resetLoadingState: false, showToast: true)
+            default:
+                handleAPIError(error, resetLoadingState: false, showToast: true)
+            }
         }
     }
 
@@ -322,6 +372,51 @@ extension NominateUsersViewModel {
             // Let the success toast render before tearing down the sheet + wizard.
             try? await Task.sleep(nanoseconds: 1_200_000_000)
             finishFlow()
+        } catch let error as APIError {
+            handleAPIError(error.toUIError(), resetLoadingState: true, showToast: true)
+        } catch {
+            handleAPIError(error, resetLoadingState: true, showToast: true)
+        }
+    }
+
+    /// Insert path used when embedded in Update Attendance. Hits the bare
+    /// `ILTTrainingAttendance` endpoint rather than `NominateUser`, and deliberately does
+    /// not call `finishFlow()` — dismissing here would pop the host Attendance screen.
+    @MainActor
+    private func submitAttendance(
+        context: NavigationViewModel.NominateAttendanceContext,
+        date: Date,
+        statusCode: String
+    ) async {
+        let dateString = date.isoDayStartUTCString
+        let body = selectedUsers.values.map { user in
+            AttendanceDataModel.InsertItem(
+                id: 0,
+                isPresent: statusCode == "ATTD",
+                userId: user.id,
+                moduleId: context.moduleID,
+                scheduleId: context.scheduleID,
+                courseId: context.courseID,
+                isweb: true,
+                attendanceStatus: statusCode,
+                attendanceDate: dateString,
+                withdrewReason: "",
+                withdrewRemark: ""
+            )
+        }
+        loadingState = .loading(title: "Nominating", message: "Please wait.")
+        do {
+            let response = try await ApiService.shared.requestPostHeader(
+                type: NominateUsersDataModel.NominateResponse.self,
+                model: AttendanceDataModel.InsertAttendanceRequest(),
+                payload: body
+            )
+            loadingState = .none
+            toast = Toast(style: .success, message: response.description ?? "Attendance added successfully.")
+            clearSelection()
+            // Let the success toast render before the host reloads its list underneath.
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            navModel.onComplete()
         } catch let error as APIError {
             handleAPIError(error.toUIError(), resetLoadingState: true, showToast: true)
         } catch {

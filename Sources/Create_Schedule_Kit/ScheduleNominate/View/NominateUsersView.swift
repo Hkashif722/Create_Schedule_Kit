@@ -89,6 +89,7 @@ private extension NominateUsersView {
                 placeholder: "Select",
                 selectedOption: viewModel.selectedColumn,
                 isSearchable: false,
+                maxContentHeight: 450,
                 onSelection: { viewModel.selectColumn($0) }
             )
 

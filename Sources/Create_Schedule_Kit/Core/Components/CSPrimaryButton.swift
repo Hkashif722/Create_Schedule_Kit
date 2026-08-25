@@ -71,6 +71,24 @@ struct CSSecondaryButton: View {
     }
 }
 
+/// Borderless text action (e.g. "Keep Schedule") — the quiet way out of a destructive sheet.
+struct CSPlainTextButton: View {
+    let title: String
+    var tint: Color = ColorUtility.primaryColor
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(tint)
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 /// Bottom navigation bar: optional outlined "Back" + filled primary action.
 struct CSNavFooter: View {
     var showBack: Bool = true

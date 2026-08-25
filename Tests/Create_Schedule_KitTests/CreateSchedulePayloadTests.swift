@@ -123,7 +123,7 @@ import SwiftUIUtilities
         let draft = offlineDraft()
         draft.deliveryMode = .online
         draft.webinarType = .zoom
-        draft.credential = .init(id: 1043, teamsEmail: "ENC_ACCOUNT==", username: nil, password: nil, isDefault: 0)
+        draft.credential = [.init(id: 1043, teamsEmail: "ENC_ACCOUNT==", username: nil, password: nil, isDefault: 0)]
         draft.feedbackModule = .init(id: "42111", title: "Feedback Report", category: "data")
         draft.trainers = [
             // id is the value EncryptDecryptUtility would decrypt to a number; with a non-decryptable

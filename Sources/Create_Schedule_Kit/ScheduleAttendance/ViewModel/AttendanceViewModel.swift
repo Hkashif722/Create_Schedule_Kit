@@ -134,7 +134,32 @@ extension AttendanceViewModel {
 // MARK: - Selection & tabs
 extension AttendanceViewModel {
 
-    func selectTab(_ tab: AttendanceTab) { activeTab = tab }
+    func selectTab(_ tab: AttendanceTab) {
+        if tab == .nominate, let message = nominateBlockReason {
+            toast = Toast(style: .warning, message: message)
+            return
+        }
+        activeTab = tab
+    }
+
+    /// Nominating from this screen inserts attendance rows directly rather than creating a
+    /// nomination, so the date and status must be chosen before the tab can be opened.
+    /// `nil` when the tab is safe to open.
+    var nominateBlockReason: String? {
+        if selectedDate == nil { return "Please select the attendance date." }
+        if (selectedStatus?.valueCode ?? "").isEmpty { return "Please select the attendance status." }
+        return nil
+    }
+
+    /// Called after users are inserted from the Nominate tab so the list and count catch up.
+    func reloadAfterNomination() {
+        Task { [weak self] in
+            guard let self else { return }
+            async let count: Void = fetchUsersCount()
+            await loadInitial()
+            _ = await count
+        }
+    }
 
     func selectStatus(_ option: StatusOption) { selectedStatus = option }
 
@@ -210,13 +235,73 @@ extension AttendanceViewModel {
         Task { [weak self] in await self?.submitAttendance() }
     }
 
-    // No endpoint provided yet for this row action.
-    func didTapViewUser(_ user: User) { /* TODO: attendance user detail */ }
+    /// Eye button — opens the "User Attendance Details" popup with that user's attendance
+    /// history for this schedule.
+    func didTapViewUser(_ user: User) {
+        Task { [weak self] in await self?.fetchUserAttendanceDetails(user) }
+    }
 
     func didTapDeleteUser(_ user: User) {
+        guard user.hasOverAllStatus else {
+            showMissingStatusAlert()
+            return
+        }
         confirmDelete { [weak self] in
             Task { await self?.deleteAttendance(user) }
         }
+    }
+
+    /// Delete acts on the tapped row, but the copy is pluralized off the current selection so
+    /// it reads correctly when the user has several rows checked.
+    var missingStatusMessage: String {
+        selectedUsers.count > 1
+            ? "Cannot delete attendance for the selected users as attendance statuses are not present."
+            : "Cannot delete attendance for the selected user as attendance status is not present."
+    }
+
+    /// A row with no overall status has nothing to remove, so the delete never reaches the API.
+    @MainActor
+    private func showMissingStatusAlert() {
+        let message = missingStatusMessage
+        let model = CustomAlertPopupModel(
+            title: "Delete",
+            alertType: .warning,
+            content: {
+                Text(message)
+                    .multilineTextAlignment(.center)
+                    .padding()
+            },
+            primaryButtonTitle: "OK",
+            primaryAction: { [weak self] in
+                self?.router.dismissModal()
+            }
+        )
+        NavigationService.shared.navigate(
+            using: router,
+            to: AppNavigationDestination.packageDestination(.customAlertPopupView(model))
+        )
+    }
+
+    /// Read-only detail popup for one user's attendance records. `CustomAlertPopupModel` captures
+    /// its content as an `AnyView` at construction, so the rows must already be in hand — the
+    /// fetch happens first, behind the screen's loading overlay.
+    @MainActor
+    private func showUserAttendanceDetails(_ details: [AttendanceDataModel.UserAttendanceDetail]) {
+        let model = CustomAlertPopupModel(
+            title: "User Attendance Details",
+            alertType: .none,
+            content: {
+                UserAttendanceDetailsPopupContent(details: details)
+            },
+            primaryButtonTitle: "Close",
+            primaryAction: { [weak self] in
+                self?.router.dismissModal()
+            }
+        )
+        NavigationService.shared.navigate(
+            using: router,
+            to: AppNavigationDestination.packageDestination(.customAlertPopupView(model))
+        )
     }
 
     /// Destructive-action confirmation, mirroring the web dialog.
@@ -345,8 +430,6 @@ extension AttendanceViewModel {
             scheduleEndDate = ScheduleDraft.parseAPIDate(details.endDate)
             discardSelectedDateIfOutOfBounds()
         } catch {
-            // Non-fatal: without the range the picker keeps its previous behaviour rather
-            // than blocking the screen, and the info card falls back to the passed-in text.
             handleAPIError(error, resetLoadingState: false, showToast: false)
         }
     }
@@ -358,22 +441,33 @@ extension AttendanceViewModel {
                 type: ScheduleListDataModel.ConfigValueResponse.self,
                 model: ScheduleListDataModel.GetConfigValueRequest(key: "ATTNOM_DEL")
             )
-            canDelete = (response.value ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "yes"
+            canDelete = response.isYes
         } catch {
             handleAPIError(error, resetLoadingState: false, showToast: false)
         }
     }
 
+    /// Saves the marked attendance to the bare `ILTTrainingAttendance` endpoint as an array of
+    /// `MarkAttendanceItem`, reproducing the web client's save payload field for field.
+    ///
+    /// Two details are load-bearing and deliberately differ from the Nominate tab's
+    /// `InsertItem`, which posts to the same route:
+    ///  • the date is zone-less (`isoDayStartString`). With a trailing `Z` the server reads it
+    ///    as UTC, shifts it to its own local time, fails to match the user's existing row and
+    ///    rejects the save as "Attendance for the user already exists."
+    ///  • `isPresent` follows `AttendanceDataModel.isPresent(forStatusCode:)` — true for
+    ///    Attended and Absent, false for Withdrew and Waived. That matches the web client,
+    ///    which sends `IsPresent: true` for Absent. See that method for the full table.
     @MainActor
     private func submitAttendance() async {
         guard let date = selectedDate else { return }
-        let statusCode = selectedStatus?.valueCode ?? "ATTD"
-        let dateString = Self.isoFormatter.string(from: date)
+        let statusCode = selectedStatus?.valueCode ?? AttendanceDataModel.StatusCode.attended
+        let dateString = date.isoDayStartString
 
         let items = selectedUsers.values.map { user in
-            AttendanceDataModel.UpdateItem(
+            AttendanceDataModel.MarkAttendanceItem(
                 id: 0,
-                isPresent: statusCode == "ATTD",
+                isPresent: AttendanceDataModel.isPresent(forStatusCode: statusCode),
                 userId: user.id,
                 moduleId: navModel.moduleID,
                 scheduleId: navModel.scheduleID,
@@ -390,7 +484,7 @@ extension AttendanceViewModel {
         do {
             let response = try await ApiService.shared.requestPostHeader(
                 type: NominateUsersDataModel.NominateResponse.self,
-                model: AttendanceDataModel.UpdateAttendanceRequest(),
+                model: AttendanceDataModel.InsertAttendanceRequest(),
                 payload: items
             )
             loadingState = .none
@@ -401,6 +495,39 @@ extension AttendanceViewModel {
         }catch let error as APIError {
             handleAPIError(error.toUIError(), resetLoadingState: true, showToast: true)
         }  catch {
+            handleAPIError(error, resetLoadingState: true, showToast: true)
+        }
+    }
+
+    /// Fetches one user's attendance history for the eye-button popup. `courseId`/`moduleId` come
+    /// from `navModel` (as in `submitAttendance`) rather than from `usersPayload`, which sends
+    /// `moduleId: 0` for the list call.
+    @MainActor
+    private func fetchUserAttendanceDetails(_ user: User) async {
+        loadingState = .loading(title: "Loading details", message: "Please wait.")
+        do {
+            let details = try await ApiService.shared.requestPostHeader(
+                type: [AttendanceDataModel.UserAttendanceDetail].self,
+                model: AttendanceDataModel.GetDetailsForUserAttendanceRequest(),
+                payload: AttendanceDataModel.UserAttendanceDetailPayload(
+                    scheduleID: navModel.scheduleID,
+                    courseId: navModel.courseID,
+                    moduleId: navModel.moduleID,
+                    userId: user.id
+                )
+            )
+            loadingState = .none
+            showUserAttendanceDetails(details)
+        } catch let error as APIError {
+            // A user with no marked attendance answers `noData` rather than an empty array —
+            // show the empty popup instead of an error toast (same tolerance as `fetchUsersCount`).
+            if case .noData = error {
+                loadingState = .none
+                showUserAttendanceDetails([])
+                return
+            }
+            handleAPIError(error.toUIError(), resetLoadingState: true, showToast: true)
+        } catch {
             handleAPIError(error, resetLoadingState: true, showToast: true)
         }
     }
@@ -437,14 +564,6 @@ extension AttendanceViewModel {
 
 // MARK: - Date formatting
 private extension AttendanceViewModel {
-
-    /// API date format: `2026-06-30T00:00:00`.
-    static let isoFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-        f.locale = Locale(identifier: "en_US_POSIX")
-        return f
-    }()
 
     /// `Jul 02, 2026` — matches `ScheduleListDataModel.Schedule.dateRangeText`, so the info
     /// card reads the same whether the range comes from the card or the fetched schedule.

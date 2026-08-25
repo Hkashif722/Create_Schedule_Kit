@@ -21,7 +21,8 @@ final class FeedbackModulePickerViewModel: BaseViewModel, PaginatableViewModel {
 
     // MARK: - Dependencies
     private let onSave: (Module) -> Void
-    private let searchDebouncer = Debouncer<String>(interval: 0.3)
+    /// Long enough that a normal typing cadence produces one request, not one per key.
+    private let searchDebouncer = Debouncer<String>(interval: 0.5)
 
     // MARK: - PaginatableViewModel state
     @Published var items: [Module] = []
@@ -30,6 +31,14 @@ final class FeedbackModulePickerViewModel: BaseViewModel, PaginatableViewModel {
     @Published var selectedID: String?
     @Published var searchText: String = ""
     @Published private(set) var totalRecords: Int = 0
+
+    /// A search-driven reload is in flight — shown inline in the search field instead of
+    /// behind the blocking "Fetching records..." overlay. See `setLoadingState`.
+    @Published private(set) var isSearching: Bool = false
+
+    /// The trimmed query the list currently reflects, so edits that don't change it don't refetch.
+    private var lastSearchedQuery = ""
+    private var searchGeneration = 0
 
     var chosenModule: Module? { items.first { $0.id == selectedID } }
 
@@ -46,11 +55,26 @@ final class FeedbackModulePickerViewModel: BaseViewModel, PaginatableViewModel {
         Task { [weak self] in await self?.loadInitial() }
     }
 
+    /// Typing only ever schedules work: the debouncer coalesces the keystrokes, and the
+    /// reload is skipped outright unless the trimmed query actually changed.
     func onSearchChanged(_ text: String) {
-        searchDebouncer.debounce(text) { [weak self] _ in
-            guard let self else { return }
-            Task { await self.loadInitial() }
+        searchDebouncer.debounce(text) { [weak self] value in
+            Task { await self?.runSearch(value) }
         }
+    }
+
+    @MainActor
+    private func runSearch(_ raw: String) async {
+        let query = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard query != lastSearchedQuery else { return }
+        lastSearchedQuery = query
+        // A slower request that is already in flight must not clear the spinner for the
+        // request that superseded it.
+        searchGeneration += 1
+        let generation = searchGeneration
+        isSearching = true
+        await loadInitial()
+        if generation == searchGeneration { isSearching = false }
     }
 
     func loadMoreIfNeeded(currentItem: Module) {
@@ -91,6 +115,16 @@ final class FeedbackModulePickerViewModel: BaseViewModel, PaginatableViewModel {
         )
         totalRecords = response.totalRecords
         return response.data.map { Module(dto: $0) }
+    }
+
+    /// Keeps the modal "Fetching records..." overlay for the sheet's first load only — a
+    /// search reload reports itself inline through `isSearching` (the list is already up, and
+    /// the query changes as the user types).
+    func setLoadingState(isLoadingMore: Bool) {
+        guard !isLoadingMore else { return }
+        emptyState = .none
+        guard !isSearching else { return }
+        loadingState = .loading(title: "Fetching records...", message: "Please wait.")
     }
 
     func handleFetchError(_ error: Error, isLoadingMore: Bool) {

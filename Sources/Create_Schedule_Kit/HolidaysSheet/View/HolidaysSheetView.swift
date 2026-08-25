@@ -28,6 +28,7 @@ struct HolidaysSheetView: View {
                     ForEach(viewModel.days) { day in
                         HolidayRowView(
                             day: day,
+                            lockCaption: viewModel.lockCaption(for: day),
                             onToggle: { viewModel.toggle(day) },
                             onLabelChange: { viewModel.updateLabel(day, $0) }
                         )

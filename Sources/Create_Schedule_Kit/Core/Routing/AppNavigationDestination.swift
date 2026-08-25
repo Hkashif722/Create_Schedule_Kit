@@ -23,6 +23,7 @@ enum AppNavigationDestination {
     case editWizard(scheduleID: Int)
     case scheduleDetail(NavigationViewModel.ScheduleDetailNavModel)
     case attendance(NavigationViewModel.AttendanceNavModel)
+    case cancelSchedule(NavigationViewModel.CancelScheduleNavModel)
 }
 
 // MARK: - Navigation Protocol Conformance
@@ -68,6 +69,13 @@ extension AppNavigationDestination: NavigationProtocol {
         case .attendance(let navModel):
             pushScreen(router) { router in
                 AttendanceView(router: router, navModel: navModel)
+            }
+
+        // Large detent rather than resizable: the sheet hosts a focused text editor, and a
+        // medium detent would sit behind the keyboard.
+        case .cancelSchedule(let navModel):
+            showFullSheetWithDragGesture(router) { router in
+                CancelScheduleView(router: router, navModel: navModel)
             }
         }
     }

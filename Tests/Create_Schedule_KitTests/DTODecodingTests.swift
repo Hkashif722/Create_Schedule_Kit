@@ -224,4 +224,53 @@ import Foundation
         #expect(module.category == "data")
         #expect(module.subtitle == "Feedback · data")
     }
+
+    // MARK: - Credential (per-provider email key spellings)
+
+    @Test func teamsCredentialDecodesItsOwnEmailKey() throws {
+        let json = #"{"id":12,"teamsEmail":"trainer@corp.com","username":"KHUSHABU","password":"pw","isDefault":1}"#
+        let cred = try decode(ScheduleBasicDetailsDataModel.Credential.self, json)
+        #expect(cred.id == 12)
+        #expect(cred.teamsEmail == "trainer@corp.com")
+        #expect(cred.username == "KHUSHABU")
+        #expect(cred.isDefault == 1)
+    }
+
+    @Test func gsuiteCredentialEmailIsPickedUpDespiteTheDifferentKey() throws {
+        let json = #"{"id":12,"gsuitEmail":"trainer@corp.com","username":"KHUSHABU","isDefault":0}"#
+        let cred = try decode(ScheduleBasicDetailsDataModel.Credential.self, json)
+        #expect(cred.teamsEmail == "trainer@corp.com")
+        #expect(cred.username == "KHUSHABU")
+    }
+
+    @Test func anUnknownProviderEmailKeyStillResolvesViaTheSuffixScan() throws {
+        let json = #"{"webexEmail":"trainer@corp.com","username":"KHUSHABU"}"#
+        let cred = try decode(ScheduleBasicDetailsDataModel.Credential.self, json)
+        #expect(cred.teamsEmail == "trainer@corp.com")
+    }
+
+    @Test func emptyAndMissingEmailValuesStayNil() throws {
+        #expect(try decode(ScheduleBasicDetailsDataModel.Credential.self, #"{"teamsEmail":"","username":"KHUSHABU"}"#).teamsEmail == nil)
+        #expect(try decode(ScheduleBasicDetailsDataModel.Credential.self, #"{"username":"KHUSHABU"}"#).teamsEmail == nil)
+    }
+
+    @Test func credentialToleratesStringIdAndBoolIsDefault() throws {
+        let json = #"{"id":"12","teamsEmail":"trainer@corp.com","isDefault":true}"#
+        let cred = try decode(ScheduleBasicDetailsDataModel.Credential.self, json)
+        #expect(cred.id == 12)
+        #expect(cred.isDefault == 1)
+    }
+
+    // MARK: - Configurable parameters
+
+    /// `ConfigurableParameters/GetValue/{key}` → `{"value":"Yes"}` / `{"value":"No"}`.
+    /// Used for schedule-level feedback (`Schfbk`), past-schedule cancel and attendance delete.
+    @Test func configValueReadsOnlyAnExplicitYesAsEnabled() throws {
+        typealias Config = ScheduleListDataModel.ConfigValueResponse
+        #expect(try decode(Config.self, #"{"value":"Yes"}"#).isYes)
+        #expect(try decode(Config.self, #"{"value":" yes "}"#).isYes)   // padded + lowercase
+        #expect(try decode(Config.self, #"{"value":"No"}"#).isYes == false)
+        #expect(try decode(Config.self, #"{"value":null}"#).isYes == false)
+        #expect(try decode(Config.self, "{}").isYes == false)
+    }
 }

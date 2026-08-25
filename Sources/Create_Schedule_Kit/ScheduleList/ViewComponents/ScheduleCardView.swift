@@ -12,19 +12,23 @@ import SwiftUIUtilities
 struct ScheduleCardView: View {
 
     let schedule: ScheduleListDataModel.Schedule
+    let participants: Int
     let onViewDetails: () -> Void
     let onAttendance: () -> Void
     let onEdit: () -> Void
+    let onCancel: () -> Void
 
-    private var participants: Int { schedule.participants }
     private var hasParticipants: Bool { participants > 0 }
+
+    /// A cancelled schedule is read-only — only "View details" survives.
+    private var isCancelled: Bool { schedule.isCancelled }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             titleRow
             infoRows
             Divider()
-            participantsBadge
+            badges
             actions
         }
         .padding(16)
@@ -43,18 +47,28 @@ struct ScheduleCardView: View {
                 .font(.system(size: 18, weight: .bold))
                 .foregroundColor(.primary)
             Spacer(minLength: 8)
-            Button(action: onEdit) {
-                Image(systemName: "pencil")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(ColorUtility.primaryColor)
-                    .frame(width: 40, height: 40)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(ColorUtility.primaryColor.opacity(0.12))
-                    )
+            // Editing or cancelling an already-cancelled schedule is meaningless, so both icons
+            // go away entirely rather than sitting there disabled.
+            if !isCancelled {
+                iconButton(systemImage: "pencil", action: onEdit)
+                iconButton(systemImage: "nosign", action: onCancel)
             }
-            .buttonStyle(.plain)
         }
+    }
+
+    /// Square tinted icon action in the title row (edit / cancel).
+    private func iconButton(systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(ColorUtility.primaryColor)
+                .frame(width: 40, height: 40)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(ColorUtility.primaryColor.opacity(0.12))
+                )
+        }
+        .buttonStyle(.plain)
     }
 
     private var infoRows: some View {
@@ -85,6 +99,14 @@ struct ScheduleCardView: View {
         }
     }
 
+    private var badges: some View {
+        HStack(spacing: 8) {
+            participantsBadge
+            if isCancelled { cancelledBadge }
+            Spacer(minLength: 0)
+        }
+    }
+
     private var participantsBadge: some View {
         HStack(spacing: 6) {
             Image(systemName: "person.2")
@@ -96,15 +118,31 @@ struct ScheduleCardView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(Capsule().fill((hasParticipants ? Color.green : Color.gray).opacity(0.15)))
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// Explains why the card's actions are gone — without it a cancelled row just looks broken.
+    private var cancelledBadge: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "xmark.circle.fill")
+                .font(.system(size: 13, weight: .semibold))
+            Text("Cancelled")
+                .font(.system(size: 14, weight: .semibold))
+        }
+        .foregroundColor(ColorUtility.primaryColor)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Capsule().fill(ColorUtility.primaryColor.opacity(0.12)))
+    }
+
+    /// A cancelled schedule keeps only "View details": attendance can no longer be taken on it.
     private var actions: some View {
         HStack(spacing: 12) {
             actionButton(title: "View details", systemImage: "eye",
                          tint: .primary, isEnabled: true, action: onViewDetails)
-            actionButton(title: "Attendance", systemImage: "checklist",
-                         tint: ColorUtility.primaryColor, isEnabled: true, action: onAttendance)
+            if !isCancelled {
+                actionButton(title: "Attendance", systemImage: "checklist",
+                             tint: ColorUtility.primaryColor, isEnabled: true, action: onAttendance)
+            }
         }
     }
 
@@ -129,18 +167,31 @@ struct ScheduleCardView: View {
 }
 
 #Preview {
-    ScheduleCardView(
-        schedule: .init(
+    func sample(scheduleType: String?) -> ScheduleListDataModel.Schedule {
+        .init(
             id: 1, scheduleCode: "SC6641", moduleName: "5544_Self nomination capacity",
             courseName: "absent flow", startDate: "2026-06-27T00:00:00", endDate: "2026-06-27T00:00:00",
             startTime: "13:30:00", endTime: "18:30:00", city: "Pune", placeName: "punea",
             academyAgencyName: "Enthralltech", participantsCount: 0,
             moduleId: nil, courseID: nil, courseCode: nil, registrationEndDate: nil,
             seatCapacity: nil, scheduleCapacity: nil, contactPersonName: nil, trainerType: nil,
-            academyTrainerName: nil, trainerDescription: nil, scheduleType: nil, purpose: nil,
+            academyTrainerName: nil, trainerDescription: nil, scheduleType: scheduleType, purpose: nil,
             timezone: nil, isWebinar: nil, webinarType: nil
-        ),
-        onViewDetails: {}, onAttendance: {}, onEdit: {}
-    )
-    .padding()
+        )
+    }
+
+    return ScrollView {
+        VStack(spacing: 16) {
+            ScheduleCardView(
+                schedule: sample(scheduleType: "Scheduled"), participants: 3,
+                onViewDetails: {}, onAttendance: {}, onEdit: {}, onCancel: {}
+            )
+            // Cancelled: no pencil, no Attendance, no Cancel Schedule.
+            ScheduleCardView(
+                schedule: sample(scheduleType: "Cancelled"), participants: 3,
+                onViewDetails: {}, onAttendance: {}, onEdit: {}, onCancel: {}
+            )
+        }
+        .padding()
+    }
 }

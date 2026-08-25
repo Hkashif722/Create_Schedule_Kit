@@ -3,7 +3,9 @@
 //  Create_Schedule_Kit
 //
 //  Coordinator for the multi-step Create Schedule wizard. Owns the shared
-//  `ScheduleDraft` and drives step navigation. Steps 3 & 4 are placeholders.
+//  `ScheduleDraft` and drives step navigation. The Feedback step is org-configurable
+//  (`ConfigurableParameters/GetValue/Schfbk`) — when it is off the wizard is two steps
+//  and Venue submits the schedule.
 //
 
 import SwiftUI
@@ -16,13 +18,25 @@ final class CreateScheduleWizardViewModel: BaseViewModel {
     // MARK: - State
     let draft = ScheduleDraft()
     let mode: WizardMode
-    let stepLabels = ["Basics", "Venue", "Feedback"]
+    var stepLabels: [String] { isFeedbackEnabled ? ["Basics", "Venue", "Feedback"] : ["Basics", "Venue"] }
     var totalSteps: Int { stepLabels.count }
     @Published var currentStep: Int = 1
+
+    /// Schedule-level feedback is an org setting. Starts off and is only turned on by an
+    /// explicit "Yes" from the config API — a failed lookup leaves the step hidden rather
+    /// than offering a module the organization does not collect.
+    @Published private(set) var isFeedbackEnabled: Bool = false
+
+    /// The config lookup has settled (either way). Steps stay unrendered until then so the
+    /// step tracker never flickers from three labels down to two.
+    @Published private(set) var isConfigLoaded: Bool = false
 
     /// Edit mode fetches + prefills the draft before step 1 may render (step view
     /// models copy the draft in their inits). Always true in create mode.
     @Published private(set) var isHydrated: Bool
+
+    /// Everything the first step depends on is resolved.
+    var isReady: Bool { isConfigLoaded && isHydrated }
 
     /// The fetched schedule in edit mode — the base the update payload echoes back.
     private(set) var editBase: EditScheduleDataModel.ScheduleDetailsResponse?
@@ -37,9 +51,25 @@ final class CreateScheduleWizardViewModel: BaseViewModel {
         self.isHydrated = !mode.isEdit
         self.onFinish = onFinish
         super.init(router: router)
+        Task { [weak self] in await self?.loadFeedbackConfig() }
         if case .edit(let scheduleID) = mode {
             Task { [weak self] in await self?.loadEditData(scheduleID: scheduleID) }
         }
+    }
+
+    /// `ConfigurableParameters/GetValue/Schfbk` → `{"value":"Yes"}` / `{"value":"No"}`.
+    @MainActor
+    private func loadFeedbackConfig() async {
+        do {
+            let response = try await ApiService.shared.requestGetHeader(
+                type: ScheduleListDataModel.ConfigValueResponse.self,
+                model: ScheduleListDataModel.GetConfigValueRequest(key: "Schfbk")
+            )
+            isFeedbackEnabled = response.isYes
+        } catch {
+            handleAPIError(error, resetLoadingState: false, showToast: false)
+        }
+        isConfigLoaded = true
     }
 
 }
