@@ -322,6 +322,11 @@ extension ScheduleListDataModel.Schedule {
 
     /// "Offline · Bangalore" / "Online · Bangalore"
     var deliveryText: String {
+        Self.deliveryText(isWebinar: isWebinar, webinarType: webinarType, city: city)
+    }
+
+    /// The list endpoint omits the webinar fields — the detail screen resolves them from `GetScheduleDetailsByID`.
+    static func deliveryText(isWebinar: Bool?, webinarType: String?, city: String?) -> String {
         let mode = (isWebinar == true || (webinarType?.isEmpty == false)) ? "Online" : "Offline"
         guard let city, !city.isEmpty else { return mode }
         return "\(mode) · \(city)"
@@ -334,19 +339,21 @@ extension ScheduleListDataModel.Schedule {
     }
 
     var seatCapacityText: String {
+        Self.seatCapacityText(seatCapacity: seatCapacity, scheduleCapacity: scheduleCapacity)
+    }
+
+    var coordinator: String {
+        Self.coordinatorText(contactPersonName: contactPersonName)
+    }
+
+    static func seatCapacityText(seatCapacity: String?, scheduleCapacity: Int?) -> String {
         if let seat = seatCapacity, !seat.isEmpty { return seat }
         if let cap = scheduleCapacity, cap > 0 { return "\(cap)" }
         return "-"
     }
 
-    var coordinator: String {
+    static func coordinatorText(contactPersonName: String?) -> String {
         (contactPersonName?.isEmpty == false) ? contactPersonName! : "-"
-    }
-
-    var purposeText: String {
-        if let p = purpose, !p.isEmpty { return p }
-        if let t = scheduleType, !t.isEmpty { return t }
-        return "-"
     }
 
     var trainerName: String {

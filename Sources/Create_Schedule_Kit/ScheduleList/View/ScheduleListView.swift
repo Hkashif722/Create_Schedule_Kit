@@ -63,17 +63,19 @@ private extension ScheduleListView {
 
                 Spacer()
 
-                Button { viewModel.didTapNew() } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "plus").font(.system(size: 14, weight: .bold))
-                        Text("New").font(.system(size: 15, weight: .semibold))
+                if viewModel.canCreateSchedule {
+                    Button { viewModel.didTapNew() } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "plus").font(.system(size: 14, weight: .bold))
+                            Text("New").font(.system(size: 15, weight: .semibold))
+                        }
+                        .foregroundColor(ColorUtility.primaryColor.getDynamicTextColor)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Capsule().fill(ColorUtility.primaryColor))
                     }
-                    .foregroundColor(ColorUtility.primaryColor.getDynamicTextColor)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(Capsule().fill(ColorUtility.primaryColor))
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal)
@@ -164,7 +166,9 @@ private extension ScheduleListView {
                         onViewDetails: { viewModel.didTapViewDetails(schedule) },
                         onAttendance: { viewModel.didTapAttendance(schedule) },
                         onEdit: { viewModel.didTapEdit(schedule) },
-                        onCancel: { viewModel.didTapCancel(schedule) }
+                        onCancel: { viewModel.didTapCancel(schedule) },
+                        canEdit: viewModel.canEditSchedule,
+                        canCancel: viewModel.canCancelSchedule
                     )
                     .onAppear { viewModel.loadMoreIfNeeded(currentItem: schedule) }
                 }

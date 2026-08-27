@@ -35,8 +35,8 @@ public actor CreateScheduleKitAPIManager {
         config?.userId ?? ""
     }
 
-    nonisolated internal var getUserType: String {
-        config?.userType ?? ""
+    nonisolated internal var getUserRole: String {
+        config?.userRole ?? ""
     }
 
     /// Current bearer token (same provider handed to `ApiService`). Used by the plain-text

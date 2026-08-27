@@ -79,6 +79,12 @@ extension AttendanceViewModel {
     /// own Cancel / Nominate footer.
     var showsSaveFooter: Bool { activeTab == .attendance }
 
+    /// An external trainer marks attendance but cannot nominate, so the Nominate tab is not
+    /// offered at all — leaving a single tab, which the bar then hides entirely.
+    var availableTabs: [AttendanceTab] {
+        permissions.canNominate ? AttendanceTab.allCases : [.attendance]
+    }
+
     func isSelected(_ user: User) -> Bool { selectedUsers[user.id] != nil }
 
     /// Selectable window for the attendance date: the schedule's range, narrowed to today
@@ -135,6 +141,9 @@ extension AttendanceViewModel {
 extension AttendanceViewModel {
 
     func selectTab(_ tab: AttendanceTab) {
+        // Role first: a tab this role cannot reach is refused silently, not explained with a
+        // "pick a date" toast that implies it would otherwise open.
+        guard availableTabs.contains(tab) else { return }
         if tab == .nominate, let message = nominateBlockReason {
             toast = Toast(style: .warning, message: message)
             return

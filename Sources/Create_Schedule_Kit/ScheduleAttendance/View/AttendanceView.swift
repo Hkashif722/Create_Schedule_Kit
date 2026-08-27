@@ -26,7 +26,8 @@ struct AttendanceView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            tabBar
+            // A single reachable tab is not a choice — don't draw a bar for it.
+            if viewModel.availableTabs.count > 1 { tabBar }
             content
             if viewModel.showsSaveFooter {
                 footer
@@ -46,7 +47,7 @@ private extension AttendanceView {
 
     var tabBar: some View {
         HStack(spacing: 0) {
-            ForEach(AttendanceTab.allCases, id: \.self) { tab in
+            ForEach(viewModel.availableTabs, id: \.self) { tab in
                 let isSelected = tab == viewModel.activeTab
                 Button { viewModel.selectTab(tab) } label: {
                     VStack(spacing: 8) {

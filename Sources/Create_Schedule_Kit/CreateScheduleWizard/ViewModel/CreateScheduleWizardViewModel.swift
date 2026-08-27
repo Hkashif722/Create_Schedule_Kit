@@ -134,8 +134,12 @@ extension CreateScheduleWizardViewModel {
                 return
             }
             loadingState = .none
-            // Schedule created — offer to nominate users before finishing.
-            promptNomination()
+            if !permissions.canNominate
+                || ScheduleDateRules.isStartInPast(startDate: draft.startDate, startTime: draft.startTime) {
+                completeAndDismiss()
+            } else {
+                promptNomination()
+            }
         } catch {
             handleAPIError(error, resetLoadingState: true, showToast: true)
         }

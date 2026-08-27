@@ -32,6 +32,11 @@ final class ScheduleLogisticsViewModel: BaseViewModel {
     @Published var selectedTrainers: [ScheduleLogisticsDataModel.Trainer] = []
     /// Incremented to ask the trainer search field to clear itself and take focus.
     @Published private(set) var trainerFocusToken: Int = 0
+    /// Where an External trainer is coming from. `nil` means the choice is still open, which
+    /// is what puts the two-option menu in place of the search field. Only consulted while
+    /// `trainerType == .external`; Internal and Consultant always search the directory.
+    @Published private(set) var trainerSource: TrainerSource?
+    @Published var isTrainerSourceMenuOpen: Bool = false
     /// Last typed trainer keyword, kept so the search can re-run when Trainer Type changes.
     private var trainerQuery: String = ""
 
@@ -95,6 +100,12 @@ extension ScheduleLogisticsViewModel {
 
     var trainerTypeOptions: [TrainerType] { TrainerType.allCases }
 
+    /// External trainers may not exist in the directory yet, so the field first asks where
+    /// this one comes from. Every other trainer type goes straight to the search field.
+    var showsTrainerSourceMenu: Bool {
+        trainerType == .external && trainerSource == nil
+    }
+
     func isTagSelected(_ tag: ScheduleLogisticsDataModel.Tag) -> Bool {
         selectedTags.contains(where: { $0.id == tag.id })
     }
@@ -134,10 +145,45 @@ extension ScheduleLogisticsViewModel {
 
     func didSelectTrainerType(_ type: TrainerType) {
         trainerType = type
+        // The source question belongs to External only, and re-asking it on every switch is
+        // the safe default — a source picked for a previous type says nothing about this one.
+        trainerSource = nil
+        isTrainerSourceMenuOpen = false
         // Results are scoped to the type, so re-search (or clear) on change.
         let query = trainerQuery
         guard query.count >= 2 else { trainerResults = []; return }
         Task { [weak self] in await self?.searchTrainers(query: query) }
+    }
+
+    func didSelectTrainerSource(_ source: TrainerSource) {
+        switch source {
+        case .existingUser:
+            // Swaps the menu out for the usual server-side search field.
+            trainerSource = .existingUser
+        case .newTrainer:
+            presentCreateTrainer()
+        }
+    }
+
+    /// A trainer created from the sheet is treated exactly like a searched one, then the field
+    /// returns to the source menu so the next trainer can come from either place.
+    func didCreateTrainer(_ trainer: ScheduleLogisticsDataModel.Trainer) {
+        didSelectTrainer(trainer)
+        trainerSource = nil
+        isTrainerSourceMenuOpen = false
+        toast = Toast(style: .success, message: "\(trainer.displayName) added as a trainer.")
+    }
+
+    private func presentCreateTrainer() {
+        let navModel = NavigationViewModel.CreateTrainerNavModel(
+            onCreated: { [weak self] trainer in
+                self?.didCreateTrainer(trainer)
+            }
+        )
+        NavigationService.shared.navigate(
+            using: router,
+            to: AppNavigationDestination.createTrainer(navModel)
+        )
     }
 
     func onTrainerSearch(_ query: String) {
@@ -157,7 +203,14 @@ extension ScheduleLogisticsViewModel {
     }
 
     /// Clears the trainer search field and puts the keyboard in it, ready for the next name.
+    /// For External the field is the source menu instead, so this reopens that choice —
+    /// the next trainer may well need creating rather than searching.
     func didTapAddAnotherTrainer() {
+        if trainerType == .external {
+            trainerSource = nil
+            isTrainerSourceMenuOpen = true
+            return
+        }
         trainerFocusToken += 1
     }
 

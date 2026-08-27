@@ -41,6 +41,8 @@ internal struct APIConst {
     static let user = "User"
     static let searchTrainer = "searchTrainer"
     static let searchActiveInActiveUser = "searchActiveInActiveUser"
+    /// Existence check used before creating an external trainer. `User/Exist`.
+    static let exist = "Exist"
     static let setting = "Setting"
     static let getColumnsForAccessibilty = "GetColumnsForAccessibilty"
     static let getTypeAhead = "GetTypeAhead"

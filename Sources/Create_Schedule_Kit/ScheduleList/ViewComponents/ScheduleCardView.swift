@@ -17,6 +17,9 @@ struct ScheduleCardView: View {
     let onAttendance: () -> Void
     let onEdit: () -> Void
     let onCancel: () -> Void
+    /// Roles that cannot own a schedule (an external trainer) lose these two icons entirely.
+    var canEdit: Bool = true
+    var canCancel: Bool = true
 
     private var hasParticipants: Bool { participants > 0 }
 
@@ -47,11 +50,12 @@ struct ScheduleCardView: View {
                 .font(.system(size: 18, weight: .bold))
                 .foregroundColor(.primary)
             Spacer(minLength: 8)
-            // Editing or cancelling an already-cancelled schedule is meaningless, so both icons
-            // go away entirely rather than sitting there disabled.
+            // Editing or cancelling an already-cancelled schedule is meaningless, and a role
+            // without the right cannot do either — both icons go away entirely rather than
+            // sitting there disabled.
             if !isCancelled {
-                iconButton(systemImage: "pencil", action: onEdit)
-                iconButton(systemImage: "nosign", action: onCancel)
+                if canEdit { iconButton(systemImage: "pencil", action: onEdit) }
+                if canCancel { iconButton(systemImage: "nosign", action: onCancel) }
             }
         }
     }
@@ -190,6 +194,12 @@ struct ScheduleCardView: View {
             ScheduleCardView(
                 schedule: sample(scheduleType: "Cancelled"), participants: 3,
                 onViewDetails: {}, onAttendance: {}, onEdit: {}, onCancel: {}
+            )
+            // External trainer: View details + Attendance only.
+            ScheduleCardView(
+                schedule: sample(scheduleType: "Scheduled"), participants: 3,
+                onViewDetails: {}, onAttendance: {}, onEdit: {}, onCancel: {},
+                canEdit: false, canCancel: false
             )
         }
         .padding()

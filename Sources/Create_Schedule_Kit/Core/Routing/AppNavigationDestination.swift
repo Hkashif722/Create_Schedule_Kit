@@ -18,6 +18,7 @@ enum AppNavigationDestination {
     // App-specific destinations
     case holidaysSheet(NavigationViewModel.HolidaysSheetNavModel)
     case feedbackPicker(NavigationViewModel.FeedbackPickerNavModel)
+    case createTrainer(NavigationViewModel.CreateTrainerNavModel)
     case nominateUsers(NavigationViewModel.NominateUsersNavModel)
     case createWizard
     case editWizard(scheduleID: Int)
@@ -44,6 +45,11 @@ extension AppNavigationDestination: NavigationProtocol {
         case .feedbackPicker(let navModel):
             showResizableSheet(router) { router in
                 FeedbackModulePickerSheet(router: router, navModel: navModel)
+            }
+
+        case .createTrainer(let navModel):
+            showResizableSheet(router) { router in
+                CreateTrainerView(router: router, navModel: navModel)
             }
 
         case .nominateUsers(let navModel):

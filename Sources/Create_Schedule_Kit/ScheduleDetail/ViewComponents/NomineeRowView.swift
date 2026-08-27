@@ -12,6 +12,8 @@ struct NomineeRowView: View {
 
     let nominee: ScheduleDetailDataModel.Nominee
     let onDelete: () -> Void
+    /// An external trainer reads the nominee list without being able to change it.
+    var canDelete: Bool = true
 
     var body: some View {
         HStack(spacing: 12) {
@@ -46,14 +48,16 @@ struct NomineeRowView: View {
                 .padding(.vertical, 6)
                 .background(Capsule().fill((nominee.isConfirmed ? Color.green : Color.orange).opacity(0.15)))
 
-            Button(action: onDelete) {
-                Image(systemName: "trash")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.red)
-                    .frame(width: 40, height: 40)
-                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.red.opacity(0.12)))
+            if canDelete {
+                Button(action: onDelete) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.red)
+                        .frame(width: 40, height: 40)
+                        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.red.opacity(0.12)))
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
         .padding(12)
         .background(

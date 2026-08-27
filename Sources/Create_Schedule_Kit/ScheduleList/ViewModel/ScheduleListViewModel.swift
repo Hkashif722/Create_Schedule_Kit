@@ -85,6 +85,13 @@ extension ScheduleListViewModel {
 
     var searchPlaceholder: String { "Search by \(filterColumn.title)…" }
 
+    /// An external trainer may view a schedule and mark its attendance, nothing more — so
+    /// "+ New" and the per-card pencil / cancel actions are hidden outright rather than shown
+    /// disabled. Nothing on this screen is left as a dead control.
+    var canCreateSchedule: Bool { permissions.canCreateSchedule }
+    var canEditSchedule: Bool { permissions.canEditSchedule }
+    var canCancelSchedule: Bool { permissions.canCancelSchedule }
+
     func participantCount(for schedule: Schedule) -> Int {
         participantCounts[schedule.id] ?? schedule.participants
     }
@@ -209,6 +216,7 @@ extension ScheduleListViewModel {
 extension ScheduleListViewModel {
 
     func didTapNew() {
+        guard permissions.canCreateSchedule else { return }
         NavigationService.shared.navigate(using: router, to: AppNavigationDestination.createWizard)
     }
 
@@ -240,6 +248,8 @@ extension ScheduleListViewModel {
         )
     }
     func didTapEdit(_ schedule: Schedule) {
+        // The card hides the pencil for a role that cannot edit; this guards a stale tap.
+        guard permissions.canEditSchedule else { return }
         NavigationService.shared.navigate(
             using: router,
             to: AppNavigationDestination.editWizard(scheduleID: schedule.id)
@@ -254,6 +264,8 @@ extension ScheduleListViewModel {
     /// registration-end rule is absolute.
     @MainActor
     func didTapCancel(_ schedule: Schedule) {
+        guard permissions.canCancelSchedule else { return }
+
         // The card already hides Cancel for a cancelled schedule; this guards the case where the
         // list is showing a stale row.
         guard !schedule.isCancelled else {

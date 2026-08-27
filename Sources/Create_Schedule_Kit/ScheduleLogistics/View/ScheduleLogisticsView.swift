@@ -156,17 +156,26 @@ private extension ScheduleLogisticsView {
         }
     }
 
+    @ViewBuilder
     var trainerField: some View {
         VStack(alignment: .leading, spacing: 6) {
             CSFieldLabel(title: "Trainer name", isRequired: true)
-            DropDownMenuListViewPkg(
-                viewModel.trainerResults,
-                placeholder: "Search and add trainer",
-                isSearchable: true,
-                focusRequest: viewModel.trainerFocusToken,
-                onSearchTextChange: { viewModel.onTrainerSearch($0) },
-                onSelection: { viewModel.didSelectTrainer($0) }
-            )
+            if viewModel.showsTrainerSourceMenu {
+                TrainerSourceMenuField(
+                    placeholder: "Trainer Name",
+                    isMenuOpen: $viewModel.isTrainerSourceMenuOpen,
+                    onSelect: { viewModel.didSelectTrainerSource($0) }
+                )
+            } else {
+                DropDownMenuListViewPkg(
+                    viewModel.trainerResults,
+                    placeholder: "Search and add trainer",
+                    isSearchable: true,
+                    focusRequest: viewModel.trainerFocusToken,
+                    onSearchTextChange: { viewModel.onTrainerSearch($0) },
+                    onSelection: { viewModel.didSelectTrainer($0) }
+                )
+            }
         }
     }
 

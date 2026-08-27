@@ -39,6 +39,22 @@ extension Date {
         Self.isoDayStartFormatter.string(from: self)
     }
 
+    /// `2026-08-27T02:44:16.832Z` — a full UTC instant with milliseconds, matching the
+    /// account timestamps the web client sends when creating a user (`POST user`). Unlike
+    /// `isoDayStartUTCString` this is a real UTC conversion: these are moments, not
+    /// calendar days, so shifting the clock is correct.
+    var isoInstantUTCString: String {
+        Self.isoInstantUTCFormatter.string(from: self)
+    }
+
+    private static let isoInstantUTCFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
+        return formatter
+    }()
+
     /// Cached alongside `isoDayStartUTCFormatter` — same per-user cost on save.
     private static let isoDayStartFormatter: DateFormatter = {
         let formatter = DateFormatter()

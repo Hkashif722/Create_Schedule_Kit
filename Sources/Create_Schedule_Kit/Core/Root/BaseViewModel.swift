@@ -12,4 +12,8 @@ import SwiftUIUtilities
 // event publisher, while still inheriting all of `RoutableViewModel`'s behaviour.
 internal class BaseViewModel: RoutableViewModel {
     let eventPublisher = CreateScheduleKitEventPublisher.shared
+
+    /// What the logged-in user's role lets them do. Read on demand rather than captured at
+    /// init so a host that reconfigures the package mid-session is picked up.
+    var permissions: SchedulePermissions { .current }
 }

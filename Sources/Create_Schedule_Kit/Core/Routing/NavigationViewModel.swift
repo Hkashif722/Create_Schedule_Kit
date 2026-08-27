@@ -28,6 +28,14 @@ extension NavigationViewModel {
         let onSave: (ScheduleFeedbackDataModel.FeedbackModule) -> Void
     }
 
+    // MARK: - Create new trainer bottom sheet
+    // Opened from Step 2's Trainer field when Trainer Type is External. `onCreated` hands the
+    // freshly created account back as a `Trainer` so Step 2 can select it immediately — the
+    // sheet is torn down at dismissal, so Step 2 also owns the success toast.
+    struct CreateTrainerNavModel {
+        let onCreated: (ScheduleLogisticsDataModel.Trainer) -> Void
+    }
+
     // MARK: - Schedule details
     struct ScheduleDetailNavModel {
         let schedule: ScheduleListDataModel.Schedule

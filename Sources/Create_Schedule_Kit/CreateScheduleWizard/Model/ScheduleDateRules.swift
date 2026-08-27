@@ -87,4 +87,33 @@ enum ScheduleDateRules {
         else { return false }
         return endMinutes <= startMinutes
     }
+
+    // MARK: - Past-dated schedules
+
+    /// The picked day carrying the parsed `startTime` — any time component on `startDate` is discarded.
+    static func startMoment(
+        startDate: Date,
+        startTime: String?,
+        calendar: Calendar = .current
+    ) -> Date {
+        let dayStart = calendar.startOfDay(for: startDate)
+        guard let raw = startTime,
+              let minutes = minutesSinceMidnight(raw, calendar: calendar)
+        else { return dayStart }
+        return calendar.date(byAdding: .minute, value: minutes, to: dayStart) ?? dayStart
+    }
+
+    /// Gate for the post-create nomination prompt — only the start matters, so an already-running multi-day schedule counts as past.
+    static func isStartInPast(
+        startDate: Date?,
+        startTime: String?,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard let startDate else { return false }
+        guard let raw = startTime, minutesSinceMidnight(raw, calendar: calendar) != nil else {
+            return calendar.startOfDay(for: startDate) < calendar.startOfDay(for: now)
+        }
+        return startMoment(startDate: startDate, startTime: raw, calendar: calendar) < now
+    }
 }

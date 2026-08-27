@@ -27,7 +27,7 @@ struct ScheduleDetailView: View {
             header
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    ScheduleDetailHeaderCard(schedule: viewModel.schedule)
+                    ScheduleDetailHeaderCard(schedule: viewModel.schedule, deliveryText: viewModel.deliveryText)
 
                     section("SCHEDULE INFO") {
                         ScheduleInfoCardView(rows: infoRows)
@@ -93,9 +93,8 @@ private extension ScheduleDetailView {
             ScheduleInfoRow(label: "Code", value: s.scheduleCode ?? "-"),
             ScheduleInfoRow(label: "Module", value: s.moduleName ?? "-"),
             ScheduleInfoRow(label: "Reg. end", value: s.regEndText.isEmpty ? "-" : s.regEndText),
-            ScheduleInfoRow(label: "Coordinator", value: s.coordinator),
-            ScheduleInfoRow(label: "Seat capacity", value: s.seatCapacityText),
-            ScheduleInfoRow(label: "Purpose", value: s.purposeText)
+            ScheduleInfoRow(label: "Coordinator", value: viewModel.coordinatorText),
+            ScheduleInfoRow(label: "Seat capacity", value: viewModel.seatCapacityText)
         ]
     }
 
@@ -106,14 +105,16 @@ private extension ScheduleDetailView {
                     .font(.system(size: 13, weight: .bold))
                     .foregroundColor(.secondary)
                 Spacer()
-                Button { viewModel.didTapAddNominee() } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "plus").font(.system(size: 14, weight: .bold))
-                        Text("Add Nominee").font(.system(size: 15, weight: .bold))
+                if viewModel.canNominate {
+                    Button { viewModel.didTapAddNominee() } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "plus").font(.system(size: 14, weight: .bold))
+                            Text("Add Nominee").font(.system(size: 15, weight: .bold))
+                        }
+                        .foregroundColor(ColorUtility.primaryColor)
                     }
-                    .foregroundColor(ColorUtility.primaryColor)
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
 
             if viewModel.loadingState.isLoading && viewModel.items.isEmpty {
@@ -126,7 +127,11 @@ private extension ScheduleDetailView {
                     .padding(.vertical, 16)
             } else {
                 ForEach(viewModel.items) { nominee in
-                    NomineeRowView(nominee: nominee, onDelete: { viewModel.didTapDeleteNominee(nominee) })
+                    NomineeRowView(
+                        nominee: nominee,
+                        onDelete: { viewModel.didTapDeleteNominee(nominee) },
+                        canDelete: viewModel.canNominate
+                    )
                         .onAppear { viewModel.loadMoreIfNeeded(currentItem: nominee) }
                 }
                 if viewModel.isLoadingMore {

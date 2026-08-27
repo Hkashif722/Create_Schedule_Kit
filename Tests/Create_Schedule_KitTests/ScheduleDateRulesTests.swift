@@ -142,6 +142,92 @@ private func date(_ y: Int, _ m: Int, _ d: Int) -> Date {
         #expect(ScheduleDateRules.isEndTimeBeforeOrEqualToStart(start: "garbage", end: "also garbage") == false)
         #expect(ScheduleDateRules.isEndTimeBeforeOrEqualToStart(start: pickerTime(hour: 11, minute: 30), end: "garbage") == false)
     }
+
+    // MARK: - Past-dated schedules (nomination-prompt gate)
+
+    @Test func startMomentCarriesThePickedTimeOntoThePickedDay() {
+        let day = date(2026, 8, 20)
+        let moment = ScheduleDateRules.startMoment(startDate: day, startTime: pickerTime(hour: 14, minute: 45))
+        let parts = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: moment)
+        #expect(parts.year == 2026)
+        #expect(parts.month == 8)
+        #expect(parts.day == 20)
+        #expect(parts.hour == 14)
+        #expect(parts.minute == 45)
+    }
+
+    @Test func startMomentIgnoresTheTimeComponentOfTheDate() {
+        let dayWithTime = Calendar.current.date(bySettingHour: 23, minute: 15, second: 0, of: date(2026, 8, 20))!
+        let moment = ScheduleDateRules.startMoment(startDate: dayWithTime, startTime: pickerTime(hour: 9, minute: 0))
+        let parts = Calendar.current.dateComponents([.day, .hour, .minute], from: moment)
+        #expect(parts.day == 20)
+        #expect(parts.hour == 9)
+        #expect(parts.minute == 0)
+    }
+
+    @Test func aStartOnAnEarlierDayIsInThePast() {
+        let now = at(2026, 8, 20, hour: 12, minute: 0)
+        #expect(ScheduleDateRules.isStartInPast(
+            startDate: date(2026, 8, 19),
+            startTime: pickerTime(hour: 9, minute: 0),
+            now: now
+        ) == true)
+    }
+
+    @Test func aStartOnALaterDayIsNotInThePast() {
+        let now = at(2026, 8, 20, hour: 12, minute: 0)
+        #expect(ScheduleDateRules.isStartInPast(
+            startDate: date(2026, 8, 21),
+            startTime: pickerTime(hour: 9, minute: 0),
+            now: now
+        ) == false)
+    }
+
+    @Test func anEarlierTimeTodayIsInThePast() {
+        let now = at(2026, 8, 20, hour: 12, minute: 0)
+        #expect(ScheduleDateRules.isStartInPast(
+            startDate: date(2026, 8, 20),
+            startTime: pickerTime(hour: 9, minute: 30),
+            now: now
+        ) == true)
+    }
+
+    @Test func aLaterTimeTodayIsNotInThePast() {
+        let now = at(2026, 8, 20, hour: 12, minute: 0)
+        #expect(ScheduleDateRules.isStartInPast(
+            startDate: date(2026, 8, 20),
+            startTime: pickerTime(hour: 15, minute: 30),
+            now: now
+        ) == false)
+    }
+
+    @Test func aStartedMultiDayScheduleIsInThePast() {
+        let now = at(2026, 8, 20, hour: 12, minute: 0)
+        #expect(ScheduleDateRules.isStartInPast(
+            startDate: date(2026, 8, 18),
+            startTime: pickerTime(hour: 9, minute: 0),
+            now: now
+        ) == true)
+    }
+
+    @Test func aMissingStartDateIsNotInThePast() {
+        #expect(ScheduleDateRules.isStartInPast(
+            startDate: nil,
+            startTime: pickerTime(hour: 9, minute: 0),
+            now: at(2026, 8, 20, hour: 12, minute: 0)
+        ) == false)
+    }
+
+    @Test func anUnparsableTimeFallsBackToAWholeDayComparison() {
+        let now = at(2026, 8, 20, hour: 12, minute: 0)
+        #expect(ScheduleDateRules.isStartInPast(startDate: date(2026, 8, 20), startTime: "garbage", now: now) == false)
+        #expect(ScheduleDateRules.isStartInPast(startDate: date(2026, 8, 20), startTime: nil, now: now) == false)
+        #expect(ScheduleDateRules.isStartInPast(startDate: date(2026, 8, 19), startTime: nil, now: now) == true)
+    }
+}
+
+private func at(_ y: Int, _ m: Int, _ d: Int, hour: Int, minute: Int) -> Date {
+    Calendar.current.date(from: DateComponents(year: y, month: m, day: d, hour: hour, minute: minute))!
 }
 
 /// Reproduces what `TimePickerTextField` stores: a 12-hour `"h:mm a"` string in the

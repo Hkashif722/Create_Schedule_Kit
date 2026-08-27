@@ -16,8 +16,9 @@ public struct CreateScheduleKitConfig: Sendable {
     let userName: String
     /// Plain (un-encrypted) logged-in user id. Encrypted in-package before APIs that require it (e.g. searchTrainer).
     let userId: String
-    /// Plain user type, e.g. "Internal". Encrypted in-package before use.
-    let userType: String
+    /// The logged-in user's role code, e.g. "ET" for an external trainer. Drives what the
+    /// package lets them do — see `SchedulePermissions`.
+    let userRole: String
     let tokenProvider: @Sendable () -> String?
 
     public init(
@@ -31,7 +32,7 @@ public struct CreateScheduleKitConfig: Sendable {
         encryptionDecryptionKey: String,
         userName: String,
         userId: String,
-        userType: String,
+        userRole: String,
         tokenProvider: @escaping @Sendable () -> String?
     ) {
         APIConst.baseURL = baseURL
@@ -44,7 +45,7 @@ public struct CreateScheduleKitConfig: Sendable {
         self.encryptionDecryptionKey = encryptionDecryptionKey
         self.userName = userName
         self.userId = userId
-        self.userType = userType
+        self.userRole = userRole
         self.tokenProvider = tokenProvider
     }
 }

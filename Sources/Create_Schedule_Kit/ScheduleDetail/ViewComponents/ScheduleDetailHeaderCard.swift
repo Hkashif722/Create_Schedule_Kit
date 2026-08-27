@@ -12,6 +12,7 @@ import SwiftUIUtilities
 struct ScheduleDetailHeaderCard: View {
 
     let schedule: ScheduleListDataModel.Schedule
+    let deliveryText: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -52,7 +53,7 @@ struct ScheduleDetailHeaderCard: View {
                 if let place = schedule.placeName, !place.isEmpty {
                     row(icon: "building.2") { text(place) }
                 }
-                row(icon: "wifi") { text(schedule.deliveryText, secondary: true) }
+                row(icon: "wifi") { text(deliveryText, secondary: true) }
             }
         }
         .padding(16)
@@ -104,7 +105,8 @@ struct ScheduleDetailHeaderCard: View {
             contactPersonName: "Sachin Shimpi", trainerType: "Internal", academyTrainerName: "Kashif User",
             trainerDescription: nil, scheduleType: "Planned Training", purpose: "Planned Training",
             timezone: nil, isWebinar: false, webinarType: nil
-        )
+        ),
+        deliveryText: "Offline · Bangalore"
     )
     .padding()
 }

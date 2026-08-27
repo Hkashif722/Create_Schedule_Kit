@@ -25,6 +25,8 @@ final class ScheduleDetailViewModel: BaseViewModel, PaginatableViewModel {
     // MARK: - Screen state
     @Published private(set) var totalNominees: Int = 0
 
+    @Published private(set) var details: EditScheduleDataModel.ScheduleDetailsResponse?
+
     private var hasLoaded = false
 
     // MARK: - Init
@@ -37,6 +39,31 @@ final class ScheduleDetailViewModel: BaseViewModel, PaginatableViewModel {
 // MARK: - Derived UI state
 extension ScheduleDetailViewModel {
     var nomineesCountText: String { "\(max(totalNominees, items.count))" }
+
+    /// An external trainer can read the nominee list but not change it, so "+ Add Nominee"
+    /// and each row's delete are hidden rather than shown disabled.
+    var canNominate: Bool { permissions.canNominate }
+
+    var deliveryText: String {
+        ScheduleListDataModel.Schedule.deliveryText(
+            isWebinar: details?.isWebinar ?? schedule.isWebinar,
+            webinarType: details?.webinarType ?? schedule.webinarType,
+            city: details?.city ?? schedule.city
+        )
+    }
+
+    var seatCapacityText: String {
+        ScheduleListDataModel.Schedule.seatCapacityText(
+            seatCapacity: details?.seatCapacity ?? schedule.seatCapacity,
+            scheduleCapacity: details?.scheduleCapacity ?? schedule.scheduleCapacity
+        )
+    }
+
+    var coordinatorText: String {
+        ScheduleListDataModel.Schedule.coordinatorText(
+            contactPersonName: details?.contactPersonName ?? schedule.contactPersonName
+        )
+    }
 }
 
 // MARK: - Lifecycle / loading
@@ -52,7 +79,8 @@ extension ScheduleDetailViewModel {
     private func loadEverything() async {
         async let list: Void = loadInitial()
         async let count: Void = fetchNomineesCount()
-        _ = await (list, count)
+        async let detail: Void = fetchDetails()
+        _ = await (list, count, detail)
     }
 
     func loadMoreIfNeeded(currentItem: Nominee) {
@@ -69,6 +97,7 @@ extension ScheduleDetailViewModel {
     }
 
     func didTapAddNominee() {
+        guard permissions.canNominate else { return }
         let navModel = NavigationViewModel.NominateUsersNavModel(
             scheduleCode: schedule.scheduleCode ?? "",
             courseID: schedule.courseID ?? 0,
@@ -82,6 +111,7 @@ extension ScheduleDetailViewModel {
     }
 
     func didTapDeleteNominee(_ nominee: Nominee) {
+        guard permissions.canNominate else { return }
         let model = CustomAlertPopupModel(
             title: "Delete",
             alertType: .none,
@@ -202,6 +232,19 @@ extension ScheduleDetailViewModel {
             }
         }
         await reloadNominees()
+    }
+
+    @MainActor
+    private func fetchDetails() async {
+        do {
+            details = try await ApiService.shared.requestPostHeader(
+                type: EditScheduleDataModel.ScheduleDetailsResponse.self,
+                model: EditScheduleDataModel.GetScheduleDetailsByIDRequest(),
+                payload: EditScheduleDataModel.GetScheduleDetailsByIDRequest.Payload(scheduleId: schedule.id)
+            )
+        } catch {
+            handleAPIError(error, resetLoadingState: false, showToast: false)
+        }
     }
 
     @MainActor
