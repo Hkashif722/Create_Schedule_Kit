@@ -2,7 +2,7 @@
 //  ScheduleTabBarView.swift
 //  Create_Schedule_Kit
 //
-//  Underlined Upcoming/Completed tab bar for the Scheduler screen.
+//  Underlined Upcoming/Ongoing/Completed tab bar for the Scheduler screen.
 //
 
 import SwiftUI

@@ -24,6 +24,7 @@ final class ScheduleDetailViewModel: BaseViewModel, PaginatableViewModel {
 
     // MARK: - Screen state
     @Published private(set) var totalNominees: Int = 0
+    @Published private(set) var isDeleteEnabled: Bool = false
 
     @Published private(set) var details: EditScheduleDataModel.ScheduleDetailsResponse?
 
@@ -41,8 +42,11 @@ extension ScheduleDetailViewModel {
     var nomineesCountText: String { "\(max(totalNominees, items.count))" }
 
     /// An external trainer can read the nominee list but not change it, so "+ Add Nominee"
-    /// and each row's delete are hidden rather than shown disabled.
+    /// is hidden rather than shown disabled.
     var canNominate: Bool { permissions.canNominate }
+
+    /// Nominee deletion requires both the role permission and the `ATTNOM_DEL` config flag.
+    var canDeleteNominees: Bool { canNominate && isDeleteEnabled }
 
     var deliveryText: String {
         ScheduleListDataModel.Schedule.deliveryText(
@@ -80,7 +84,8 @@ extension ScheduleDetailViewModel {
         async let list: Void = loadInitial()
         async let count: Void = fetchNomineesCount()
         async let detail: Void = fetchDetails()
-        _ = await (list, count, detail)
+        async let deleteFlag: Void = fetchDeleteFlag()
+        _ = await (list, count, detail, deleteFlag)
     }
 
     func loadMoreIfNeeded(currentItem: Nominee) {
@@ -111,7 +116,7 @@ extension ScheduleDetailViewModel {
     }
 
     func didTapDeleteNominee(_ nominee: Nominee) {
-        guard permissions.canNominate else { return }
+        guard canDeleteNominees else { return }
         let model = CustomAlertPopupModel(
             title: "Delete",
             alertType: .none,
@@ -178,6 +183,22 @@ extension ScheduleDetailViewModel {
 
 // MARK: - API
 extension ScheduleDetailViewModel {
+
+    private func fetchDeleteFlag() async {
+        do {
+            let response = try await ApiService.shared.requestGetHeader(
+                type: ScheduleListDataModel.ConfigValueResponse.self,
+                model: ScheduleListDataModel.GetConfigValueRequest(key: "ATTNOM_DEL")
+            )
+            await MainActor.run { [weak self] in
+                self?.isDeleteEnabled = response.isYes
+            }
+        } catch {
+            await MainActor.run { [weak self] in
+                self?.handleAPIError(error, resetLoadingState: false, showToast: false)
+            }
+        }
+    }
 
     private func attendancePayload(page: Int) -> ScheduleDetailDataModel.AttendancePayload {
         ScheduleDetailDataModel.AttendancePayload(

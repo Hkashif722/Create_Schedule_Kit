@@ -122,6 +122,33 @@ struct ScheduleLogisticsDataModel {
 
         var displayName: String { nameUserId ?? name }
         var description: String { displayName }
+
+        /// "Chetan Wadil (Internal)" — the composed display the web client shows for a
+        /// selected trainer. Falls back to the plain name when the type is unknown. The raw
+        /// type is normalized through `TrainerType` so casing matches the web ("internal" →
+        /// "Internal"); an unrecognized value passes through as-is.
+        var displayNameWithType: String {
+            let raw = (userType ?? "").trimmingCharacters(in: .whitespaces)
+            guard !raw.isEmpty else { return displayName }
+            let title = TrainerType(rawValue: raw.lowercased())?.displayTitle ?? raw
+            return "\(displayName) (\(title))"
+        }
+
+        /// Copy with the trainer type stamped in. The search endpoint does not reliably echo
+        /// the type, but its results are already filtered by the wizard's selected Trainer
+        /// Type — so selection stamps that value for display.
+        func withUserType(_ type: String) -> Trainer {
+            Trainer(
+                id: id,
+                name: name,
+                emailId: emailId,
+                userId: userId,
+                profilePicture: profilePicture,
+                mobileNumber: mobileNumber,
+                userType: type,
+                nameUserId: nameUserId
+            )
+        }
     }
 
     /// User row from `searchActiveInActiveUser`. Identity and contact fields are

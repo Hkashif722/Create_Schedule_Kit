@@ -186,7 +186,7 @@ private extension ScheduleListView {
             Image(systemName: "calendar.badge.exclamationmark")
                 .font(.system(size: 30, weight: .semibold))
                 .foregroundColor(.secondary)
-            Text(viewModel.selectedTab == .completed ? "No completed schedules" : "No upcoming schedules")
+            Text("No \(viewModel.selectedTab.title.lowercased()) schedules")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(.secondary)
             Spacer()

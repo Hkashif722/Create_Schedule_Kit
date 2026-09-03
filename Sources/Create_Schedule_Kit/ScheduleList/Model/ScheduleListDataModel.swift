@@ -309,16 +309,55 @@ extension ScheduleListDataModel.Schedule {
     /// Big title on the detail header (course name, falling back to module / code).
     var detailTitle: String { courseName ?? moduleName ?? scheduleCode ?? "Schedule" }
 
-    /// Day-granular Upcoming/Completed split from the end date — the single source of truth for
-    /// both the list tabs (`ScheduleListViewModel.displayItems`) and the detail header pill. A
-    /// schedule ending today is still upcoming; it moves to Completed tomorrow. An unparseable
-    /// end date reads as upcoming.
-    var isUpcoming: Bool {
+    /// Day-granular not-yet-completed check off the end date: a schedule ending today has not
+    /// completed; it moves to Completed tomorrow. An unparseable end date reads as not completed.
+    var isUpcoming: Bool { isUpcoming(now: Date()) }
+
+    func isUpcoming(now: Date) -> Bool {
         guard let end = endDateValue else { return true }
         let calendar = Calendar.current
-        return calendar.startOfDay(for: end) >= calendar.startOfDay(for: Date())
+        return calendar.startOfDay(for: end) >= calendar.startOfDay(for: now)
     }
-    var statusText: String { isUpcoming ? "Upcoming" : "Completed" }
+
+    /// Start moment of the schedule. `startDate` usually carries a midnight timestamp with the
+    /// real time-of-day in `startTime`, so the two are merged; a missing or unparseable
+    /// `startTime` leaves the schedule starting at the `startDate` value itself (midnight, i.e.
+    /// day-granular). An unparseable `startDate` reads as not started.
+    var startDateTimeValue: Date? {
+        guard let day = ScheduleDraft.parseAPIDate(startDate) else { return nil }
+        guard let raw = startTime, let time = Self.parseTimeOfDay(raw) else { return day }
+        let parts = Calendar.current.dateComponents([.hour, .minute, .second], from: time)
+        return Calendar.current.date(
+            bySettingHour: parts.hour ?? 0,
+            minute: parts.minute ?? 0,
+            second: parts.second ?? 0,
+            of: day
+        ) ?? day
+    }
+
+    func hasStarted(now: Date = Date()) -> Bool {
+        guard let start = startDateTimeValue else { return false }
+        return now >= start
+    }
+
+    /// The single source of truth for the Upcoming/Ongoing/Completed split — drives both the
+    /// list tabs (`ScheduleListViewModel.displayItems`) and the detail header pill, so the two
+    /// cannot drift apart. Completed once the end day has passed (day-granular: a schedule
+    /// ending today is not yet completed), Ongoing once the start date + time has passed,
+    /// Upcoming before that.
+    var listTab: ScheduleTab { listTab(now: Date()) }
+
+    func listTab(now: Date) -> ScheduleTab {
+        guard isUpcoming(now: now) else { return .completed }
+        return hasStarted(now: now) ? .ongoing : .upcoming
+    }
+
+    /// Status pill on the detail header — the same label as the tab the schedule sits on.
+    var statusText: String { statusText(now: Date()) }
+
+    func statusText(now: Date) -> String {
+        listTab(now: now).title
+    }
 
     /// "Offline · Bangalore" / "Online · Bangalore"
     var deliveryText: String {
@@ -364,4 +403,17 @@ extension ScheduleListDataModel.Schedule {
         guard let raw, let date = apiTimeFormatter.date(from: raw) else { return raw ?? "" }
         return date.formatted(using: "HH:mm")
     }
+
+    /// The API sends `"09:00:00"`, but some endpoints drop the seconds.
+    private static func parseTimeOfDay(_ raw: String) -> Date? {
+        if let date = apiTimeFormatter.date(from: raw) { return date }
+        return shortTimeFormatter.date(from: raw)
+    }
+
+    private static let shortTimeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
 }

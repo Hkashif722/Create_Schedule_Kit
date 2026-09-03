@@ -2,8 +2,8 @@
 //  ScheduleListViewModel.swift
 //  Create_Schedule_Kit
 //
-//  Drives the Scheduler landing screen: a paginated schedule list with Upcoming/Completed
-//  tabs (filtered client-side by end date — the endpoint has no tab parameter), search, and a
+//  Drives the Scheduler landing screen: a paginated schedule list with Upcoming/Ongoing/Completed
+//  tabs (filtered client-side by start/end date — the endpoint has no tab parameter), search, and a
 //  "+ New" action that launches the create-schedule wizard. Total count and configurable settings
 //  are fetched in parallel with the first page. The rows are refetched when a schedule is created,
 //  updated or cancelled, and whenever the screen comes back on top.
@@ -17,11 +17,13 @@ import NetworkService
 
 enum ScheduleTab: CaseIterable {
     case upcoming
+    case ongoing
     case completed
 
     var title: String {
         switch self {
         case .upcoming:  return "Upcoming"
+        case .ongoing:   return "Ongoing"
         case .completed: return "Completed"
         }
     }
@@ -73,10 +75,11 @@ final class ScheduleListViewModel: BaseViewModel, PaginatableViewModel {
 // MARK: - Derived UI state
 extension ScheduleListViewModel {
 
-    /// Items for the selected tab. The split itself lives on `Schedule.isUpcoming` so the list
+    /// Items for the selected tab. The split itself lives on `Schedule.listTab` so the list
     /// tabs and the detail header pill cannot drift apart.
     var displayItems: [Schedule] {
-        items.filter { selectedTab == .upcoming ? $0.isUpcoming : !$0.isUpcoming }
+        let now = Date()
+        return items.filter { $0.listTab(now: now) == selectedTab }
     }
 
     /// True while `fillSelectedTab()` is still walking pages looking for rows for this tab — the
@@ -303,10 +306,14 @@ extension ScheduleListViewModel {
 extension ScheduleListViewModel {
 
     func fetchItems(pageIndex: Int, isLoadingMore: Bool) async throws -> [Schedule] {
+        try await requestSchedules(page: pageIndex, pageSize: itemsPerPage)
+    }
+
+    private func requestSchedules(page: Int, pageSize: Int) async throws -> [Schedule] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         let payload = ScheduleListDataModel.ListPayload(
-            page: pageIndex,
-            pageSize: itemsPerPage,
+            page: page,
+            pageSize: pageSize,
             // `Search` names the column, `searchText` carries the value. Either both go or
             // neither does — a value with no column is dropped on the floor server-side.
             search: query.isEmpty ? nil : filterColumn.apiValue,
@@ -400,14 +407,43 @@ extension ScheduleListViewModel {
         }
     }
 
-    /// Refetches the rows and the total. Used when the list comes back on screen and after a
-    /// cancellation — the cancelled schedule drops out of the list and the total shrinks, so both
-    /// need refetching.
+    /// Refetches the rows and the total without disturbing the screen. Used when the list comes
+    /// back on top and after a cancellation — the cancelled schedule drops out of the list and
+    /// the total shrinks, so both need refetching, but the list is already visible so the rows
+    /// are swapped in place rather than reloaded from scratch.
     @MainActor
     private func reloadList() async {
-        async let list: Void = refreshAndFill()
+        async let list: Void = silentReload()
         async let count: Void = fetchCount()
         _ = await (list, count)
+    }
+
+    /// In-place refresh for a list that is already on screen: refetches the window of rows
+    /// currently loaded in one request and swaps them in atomically. `loadingState` is never
+    /// touched and `items` is never emptied first, so the ScrollView is not torn down — no
+    /// blocking overlay, no flash, and the scroll position survives. A failed refresh keeps the
+    /// stale rows rather than disrupt the screen, the same policy as load-more errors.
+    @MainActor
+    private func silentReload() async {
+        // Nothing on screen to preserve — fall back to the regular first-load pipeline.
+        guard !items.isEmpty else {
+            await refreshAndFill()
+            return
+        }
+        do {
+            // Page 1 with pageSize = currentPage * itemsPerPage returns the same window as
+            // pages 1..currentPage of size itemsPerPage, so loadMore() stays aligned afterwards.
+            let window = max(currentPage, 1) * itemsPerPage
+            let fresh = try await requestSchedules(page: 1, pageSize: window)
+            items = fresh
+            hasMore = fresh.count >= window
+            emptyState = items.isEmpty ? .noData : .none
+            // The selected tab may have emptied (e.g. its last schedule was cancelled or moved
+            // buckets) — keep paging until it has rows again or the server runs out.
+            await fillSelectedTab()
+        } catch {
+            handleAPIError(error, resetLoadingState: false, showToast: false)
+        }
     }
 
     @MainActor

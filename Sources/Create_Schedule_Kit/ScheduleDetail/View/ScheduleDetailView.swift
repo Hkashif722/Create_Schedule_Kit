@@ -130,7 +130,7 @@ private extension ScheduleDetailView {
                     NomineeRowView(
                         nominee: nominee,
                         onDelete: { viewModel.didTapDeleteNominee(nominee) },
-                        canDelete: viewModel.canNominate
+                        canDelete: viewModel.canDeleteNominees
                     )
                         .onAppear { viewModel.loadMoreIfNeeded(currentItem: nominee) }
                 }

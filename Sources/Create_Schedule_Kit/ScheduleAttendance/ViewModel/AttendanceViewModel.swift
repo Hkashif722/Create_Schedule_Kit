@@ -353,10 +353,22 @@ extension AttendanceViewModel {
     }
 
     func handleFetchError(_ error: Error, isLoadingMore: Bool) {
+        if let apiError = error as? APIError, case .noData = apiError {
+            hasMore = false
+
+            if !isLoadingMore {
+                loadingState = .loaded
+                emptyState = .noData
+                toast = Toast(style: .info, message: "No nominated users found.")
+            }
+            return
+        }
+
         if !isLoadingMore {
             loadingState = .none
             emptyState = .error
         }
+
         handleAPIError(error, resetLoadingState: false, showToast: true)
     }
 }

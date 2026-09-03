@@ -182,7 +182,7 @@ private extension ScheduleLogisticsView {
     var selectedTrainersGrid: some View {
         LazyVGrid(columns: chipColumns, alignment: .leading, spacing: 8) {
             ForEach(viewModel.selectedTrainers) { trainer in
-                CSRemovableChip(title: trainer.displayName) {
+                CSRemovableChip(title: trainer.displayNameWithType) {
                     viewModel.removeTrainer(trainer)
                 }
             }

@@ -195,7 +195,7 @@ extension ScheduleLogisticsViewModel {
 
     func didSelectTrainer(_ trainer: ScheduleLogisticsDataModel.Trainer) {
         guard !selectedTrainers.contains(where: { $0.id == trainer.id }) else { return }
-        selectedTrainers.append(trainer)
+        selectedTrainers.append(trainer.withUserType(trainerType.apiValue))
     }
 
     func removeTrainer(_ trainer: ScheduleLogisticsDataModel.Trainer) {
