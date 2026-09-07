@@ -39,6 +39,13 @@ final class NominateUsersViewModel: BaseViewModel, PaginatableViewModel {
     @Published var selectedColumn: Column?
     @Published var searchText: String = ""
     @Published var typeaheadResults: [NominateUsersDataModel.TypeAheadResult] = []
+    /// The suggestion currently shown in the search field. Owned here rather than left to
+    /// the dropdown's internal state so it can be cleared when the filter parameter changes.
+    @Published private(set) var selectedSuggestion: NominateUsersDataModel.TypeAheadResult?
+    /// Bumped to send the search field back to its placeholder. A value typed but never
+    /// picked lives only inside the control, so clearing the model is not enough — this
+    /// token is the control's own "start a fresh search" request.
+    @Published private(set) var searchResetToken: Int = 0
     @Published private(set) var selectedUsers: [Int: User] = [:]
     @Published private(set) var totalUsersCount: Int = 0
     @Published private(set) var isBatchwiseEnabled: Bool = false
@@ -95,8 +102,22 @@ extension NominateUsersViewModel {
 // MARK: - Search (typeahead)
 extension NominateUsersViewModel {
 
+    /// A value found under the previous parameter has no meaning under the new one — an
+    /// email left in the box while the parameter says "Employee ID" searches for nothing.
+    /// So switching parameters empties the search and re-runs the unscoped list.
     func selectColumn(_ column: Column) {
+        guard column != selectedColumn else { return }
         selectedColumn = column
+
+        let hadQuery = !searchText.isEmpty || selectedSuggestion != nil
+        selectedSuggestion = nil
+        searchText = ""
+        typeaheadResults = []
+        // Nothing was searched, so there is nothing to clear and no list to restore —
+        // and no reason to pull focus into an empty box.
+        guard hadQuery else { return }
+        searchResetToken += 1
+        Task { [weak self] in await self?.loadInitial() }
     }
 
     // Debounce typeahead/list re-queries so they coalesce while typing.
@@ -115,6 +136,7 @@ extension NominateUsersViewModel {
 
     /// Applying a suggestion re-queries the main list scoped to the selected column.
     func selectSuggestion(_ result: NominateUsersDataModel.TypeAheadResult) {
+        selectedSuggestion = result
         if let name = result.name { searchText = name }
         typeaheadResults = []
         Task { [weak self] in await self?.loadInitial() }

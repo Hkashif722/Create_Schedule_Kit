@@ -79,8 +79,11 @@ extension NetworkService.APIError {
         case .encodingFailed:
             return .customError(message: "Encoding failed")
        
+        // The server's own text — the whole point of the conversion. It used to be
+        // replaced with "Encoding failed", which is how a real validation message
+        // ("training place is already booked") reached the user as nonsense.
         case .customError(message: let message):
-            return .customError(message: "Encoding failed")
+            return .customError(message: message)
        
         }
     }

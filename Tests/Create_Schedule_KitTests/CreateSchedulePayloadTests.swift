@@ -151,9 +151,83 @@ import SwiftUIUtilities
         #expect(trainers[0]["academyTrainerID"] != nil)
     }
 
-    @Test func twelveHourPickerTimesAreConvertedTo24Hour() throws {
-        // Reproduce exactly what TimePickerTextField stores: a 12-hour "h:mm a" string in the
-        // current locale. Built from a Date so the test is locale-robust on any machine.
+    // MARK: - Teams static link
+
+    private func onlineDraft(_ type: WebinarType) -> ScheduleDraft {
+        let draft = offlineDraft()
+        draft.deliveryMode = .online
+        draft.webinarType = type
+        draft.credential = [.init(id: 1043, teamsEmail: "ENC_ACCOUNT==", username: nil, password: nil, isDefault: 0)]
+        return draft
+    }
+
+    @Test func teamsStaticLinkTravelsInTeamsScheduleDetails() throws {
+        let draft = onlineDraft(.teams)
+        draft.teamsLink = "Https://team.link"
+
+        let object = try encodeToObject(.init(draft: draft))
+        let details = try #require(object["teamsScheduleDetails"] as? [[String: Any]])
+
+        #expect(details.count == 1)
+        #expect(details[0]["joinUrl"] as? String == "Https://team.link")
+        // The server's own scaffolding, reproduced exactly as the web client sends it.
+        #expect(details[0]["id"] as? Int == 0)
+        #expect(details[0]["courseID"] as? Int == 0)
+        #expect(details[0]["scheduleID"] as? Int == 0)
+        #expect(details[0]["userWebinarId"] as? Int == 0)
+        #expect(details[0]["meetingId"] is NSNull)
+        #expect(details[0]["startTime"] is NSNull)
+        #expect(details[0]["endTime"] is NSNull)
+        #expect(details[0]["iCalUId"] is NSNull)
+    }
+
+    @Test func teamsStaticLinkIsNormalizedBeforeItIsSent() throws {
+        let draft = onlineDraft(.teams)
+        draft.teamsLink = "  <https://team.link>\n"
+
+        let object = try encodeToObject(.init(draft: draft))
+        let details = try #require(object["teamsScheduleDetails"] as? [[String: Any]])
+        #expect(details[0]["joinUrl"] as? String == "https://team.link")
+    }
+
+    @Test func aLinkIsOnlySentForTeams() throws {
+        // A link left over from a Teams selection must not follow the organiser to Zoom.
+        let draft = onlineDraft(.zoom)
+        draft.teamsLink = "https://team.link"
+
+        let object = try encodeToObject(.init(draft: draft))
+        #expect((object["teamsScheduleDetails"] as? [Any])?.isEmpty == true)
+    }
+
+    @Test func offlineScheduleCarriesNoLink() throws {
+        let draft = offlineDraft()
+        draft.teamsLink = "https://team.link"
+
+        let object = try encodeToObject(.init(draft: draft))
+        #expect((object["teamsScheduleDetails"] as? [Any])?.isEmpty == true)
+    }
+
+    @Test func aScheduleWithNoLinkKeepsTodaysBody() throws {
+        // Regression pin on the key that used to be a hardcoded `[]`.
+        let object = try encodeToObject(.init(draft: onlineDraft(.teams)))
+        #expect((object["teamsScheduleDetails"] as? [Any])?.isEmpty == true)
+    }
+
+    @Test func onlyATypedLinkChangesTheCreateEndpoint() throws {
+        #expect(CreateScheduleWizardDataModel.Payload(draft: onlineDraft(.zoom)).carriesClientMeetingDetails == false)
+        #expect(CreateScheduleWizardDataModel.Payload(draft: onlineDraft(.teams)).carriesClientMeetingDetails == false)
+
+        let withTeamsLink = onlineDraft(.teams)
+        withTeamsLink.teamsLink = "https://team.link"
+        #expect(CreateScheduleWizardDataModel.Payload(draft: withTeamsLink).carriesClientMeetingDetails)
+
+        #expect(CreateScheduleWizardDataModel.CreateScheduleRequest().path.hasSuffix("/v1/ILTSchedule"))
+        #expect(CreateScheduleWizardDataModel.PostWithMeetingRequest().path.hasSuffix("/ILTSchedule/PostWithMeeting"))
+    }
+
+
+    @Test func legacyTwelveHourPickerTimesAreConvertedTo24Hour() throws {
+        // Compatibility for drafts made before the picker switched to canonical HH:mm.
         func pickerString(hour: Int, minute: Int) -> String {
             var components = DateComponents()
             components.hour = hour
@@ -172,6 +246,16 @@ import SwiftUIUtilities
         let object = try encodeToObject(.init(draft: draft))
         #expect(object["startTime"] as? String == "16:47")
         #expect(object["endTime"] as? String == "09:05")
+    }
+
+    @Test func apiTimesWithSecondsAreNormalizedToHoursAndMinutes() throws {
+        let draft = offlineDraft()
+        draft.startTime = "16:47:35"
+        draft.endTime = "18:09:59"
+
+        let object = try encodeToObject(.init(draft: draft))
+        #expect(object["startTime"] as? String == "16:47")
+        #expect(object["endTime"] as? String == "18:09")
     }
 
     @Test func responseEnvelopeDecodes() throws {

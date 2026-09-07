@@ -41,6 +41,16 @@ extension NavigationViewModel {
         let schedule: ScheduleListDataModel.Schedule
     }
 
+    // MARK: - Waiting list / availability
+    // Pushed from the Schedule Details header chips. `mode` picks which list the screen
+    // shows; the identifiers are the ones both list bodies need.
+    struct ScheduleUsersNavModel {
+        let mode: ScheduleUsersDataModel.Mode
+        let scheduleID: Int
+        let courseID: Int
+        let moduleID: Int
+    }
+
     // MARK: - Update attendance
     // Pushed from a schedule card's Attendance action. Carries the schedule's identifiers
     // plus display strings for the read-only info card.

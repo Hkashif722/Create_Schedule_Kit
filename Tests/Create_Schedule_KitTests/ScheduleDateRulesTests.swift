@@ -8,6 +8,49 @@ private func date(_ y: Int, _ m: Int, _ d: Int) -> Date {
 
 @Suite struct ScheduleDateRulesTests {
 
+    // MARK: - Sunday is not a working day (Bug 78418)
+
+    @Test func sundayIsNotSelectable() {
+        // 2026-08-23 is a Sunday.
+        #expect(ScheduleDateRules.isSunday(date(2026, 8, 23)))
+    }
+
+    @Test func onlySundayIsExcludedFromThePickers() {
+        // The value handed to the date fields, which dim these weekdays in the calendar.
+        #expect(ScheduleDateRules.nonWorkingWeekdays == [1])
+    }
+
+    @Test func everyOtherWeekdayIsSelectable() {
+        // Monday 2026-08-24 through Saturday 2026-08-29.
+        for day in 24...29 {
+            #expect(ScheduleDateRules.isSunday(date(2026, 8, day)) == false)
+        }
+    }
+
+    @Test func timeOfDayDoesNotAffectTheSundayRule() {
+        let sunday = date(2026, 8, 23)
+        let lateSunday = Calendar.current.date(bySettingHour: 23, minute: 59, second: 0, of: sunday)!
+        let earlySunday = Calendar.current.date(bySettingHour: 0, minute: 1, second: 0, of: sunday)!
+        #expect(ScheduleDateRules.isSunday(lateSunday))
+        #expect(ScheduleDateRules.isSunday(earlySunday))
+    }
+
+    @Test func autoPopulatedDatesInheritANonSundayStart() {
+        // End and registration-end copy the start date, so a refused Sunday can never
+        // reach them through auto-populate.
+        let monday = date(2026, 8, 24)
+        let populated = ScheduleDateRules.autoPopulated(forStart: monday)
+        #expect(ScheduleDateRules.isSunday(populated.end) == false)
+        #expect(ScheduleDateRules.isSunday(populated.registrationEnd) == false)
+    }
+
+    @Test func clampingAnEarlyEndDateFallsBackToTheNonSundayStart() {
+        let monday = date(2026, 8, 24)
+        let clamped = ScheduleDateRules.clampedEnd(date(2026, 8, 20), start: monday)
+        #expect(clamped == monday)
+        #expect(ScheduleDateRules.isSunday(clamped) == false)
+    }
+
     @Test func startSelectionAutoPopulatesEndAndRegistration() {
         let start = date(2026, 8, 20)
         let result = ScheduleDateRules.autoPopulated(forStart: start)
@@ -83,22 +126,32 @@ private func date(_ y: Int, _ m: Int, _ d: Int) -> Date {
 
     // MARK: - Time of day
 
-    @Test func minutesSinceMidnightReadsTwelveHourPickerStrings() {
-        #expect(ScheduleDateRules.minutesSinceMidnight(pickerTime(hour: 11, minute: 30)) == 11 * 60 + 30)
-        #expect(ScheduleDateRules.minutesSinceMidnight(pickerTime(hour: 0, minute: 0)) == 0)
-        #expect(ScheduleDateRules.minutesSinceMidnight(pickerTime(hour: 23, minute: 59)) == 23 * 60 + 59)
+    @Test func minutesSinceMidnightReadsCanonical24HourTimes() {
+        #expect(ScheduleDateRules.minutesSinceMidnight("11:30") == 11 * 60 + 30)
+        #expect(ScheduleDateRules.minutesSinceMidnight("00:00") == 0)
+        #expect(ScheduleDateRules.minutesSinceMidnight("23:59") == 23 * 60 + 59)
     }
 
-    /// `ScheduleDraft.displayTime` passes API values through unchanged when it cannot
-    /// convert them, so the 24-hour form has to parse too.
-    @Test func minutesSinceMidnightAlsoReadsApiStyleTimes() {
-        #expect(ScheduleDateRules.minutesSinceMidnight("16:47") == 16 * 60 + 47)
-        #expect(ScheduleDateRules.minutesSinceMidnight("09:05") == 9 * 60 + 5)
+    @Test func apiTimesWithSecondsAreParsedExactly() {
+        #expect(ScheduleDateRules.secondsSinceMidnight("16:47:31") == 16 * 3_600 + 47 * 60 + 31)
+    }
+
+    @Test func oldTwelveHourPickerValuesRemainCompatible() {
+        #expect(ScheduleDateRules.minutesSinceMidnight(pickerTime(hour: 0, minute: 5)) == 5)
+        #expect(ScheduleDateRules.minutesSinceMidnight(pickerTime(hour: 16, minute: 47)) == 16 * 60 + 47)
+    }
+
+    @Test func canonicalTimeAlwaysUses24HourFormat() {
+        #expect(ScheduleDateRules.canonical24HourTime("9:05") == "09:05")
+        #expect(ScheduleDateRules.canonical24HourTime("19:10:45") == "19:10")
+        #expect(ScheduleDateRules.canonical24HourTime(pickerTime(hour: 16, minute: 47)) == "16:47")
     }
 
     @Test func minutesSinceMidnightRejectsGarbage() {
         #expect(ScheduleDateRules.minutesSinceMidnight("") == nil)
         #expect(ScheduleDateRules.minutesSinceMidnight("not a time") == nil)
+        #expect(ScheduleDateRules.minutesSinceMidnight("24:00") == nil)
+        #expect(ScheduleDateRules.minutesSinceMidnight("12:60") == nil)
     }
 
     /// The reported bug: 11:30 AM → 11:30 AM was accepted as a zero-length session.
@@ -230,8 +283,7 @@ private func at(_ y: Int, _ m: Int, _ d: Int, hour: Int, minute: Int) -> Date {
     Calendar.current.date(from: DateComponents(year: y, month: m, day: d, hour: hour, minute: minute))!
 }
 
-/// Reproduces what `TimePickerTextField` stores: a 12-hour `"h:mm a"` string in the
-/// current locale. Built from a `Date` so the expectations hold on any machine.
+/// Reproduces values stored by the former 12-hour picker for compatibility coverage.
 private func pickerTime(hour: Int, minute: Int) -> String {
     var components = DateComponents()
     components.hour = hour

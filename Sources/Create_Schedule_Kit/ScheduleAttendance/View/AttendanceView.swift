@@ -150,7 +150,7 @@ private extension AttendanceView {
                 )
 
                 VStack(alignment: .leading, spacing: 6) {
-                    CSFieldLabel(title: "Attendance Status")
+                    CSFieldLabel(title: "Attendance Status", isRequired: true)
                     DropDownMenuListViewPkg(
                         viewModel.statusOptions,
                         placeholder: "Select status",

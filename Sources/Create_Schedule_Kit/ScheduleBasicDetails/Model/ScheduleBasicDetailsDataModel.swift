@@ -10,6 +10,29 @@ import Foundation
 import NetworkService
 import SwiftUIUtilities
 
+/// Centralizes the configurable-parameter contract for schedule-code editing.
+enum ScheduleCodeEditingPolicy {
+    static let configurationCode = "ASCFE"
+
+    /// Fail closed when the lookup is missing or does not explicitly return Yes.
+    static func isEnabled(by response: ScheduleListDataModel.ConfigValueResponse?) -> Bool {
+        response?.isYes ?? false
+    }
+}
+
+/// Centralizes the configurable-parameter contract for the manually-entered Teams link.
+///
+/// Only Microsoft Teams uses it: with the flag on, the organiser pastes a meeting link by
+/// hand instead of one being minted through a provider API.
+enum TeamsLinkPolicy {
+    static let configurationCode = "ATPTLWCS"
+
+    /// Fail closed when the lookup is missing or does not explicitly return Yes.
+    static func isEnabled(by response: ScheduleListDataModel.ConfigValueResponse?) -> Bool {
+        response?.isYes ?? false
+    }
+}
+
 struct ScheduleBasicDetailsDataModel {
 
     // MARK: - Endpoints

@@ -32,6 +32,31 @@ struct CSRemovableChip: View {
     }
 }
 
+/// A chip that opens somewhere: icon + title, tinted like the quiet status pills.
+struct CSNavChip: View {
+    let title: String
+    let systemImage: String
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 6) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 12, weight: .bold))
+                Text(title)
+                    .font(.system(size: 13, weight: .bold))
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .foregroundColor(ColorUtility.primaryColor)
+            .background(Capsule().fill(ColorUtility.primaryColor.opacity(0.12)))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 /// A togglable selection chip (used for the tags picker).
 struct CSSelectableChip: View {
     let title: String

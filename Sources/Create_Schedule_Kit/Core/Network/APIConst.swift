@@ -71,6 +71,7 @@ internal struct APIConst {
     // MARK: - ILTTrainingAttendance
     static let iltTrainingAttendance = "ILTTrainingAttendance"
     static let getUsersForAttendance = "GetUsersForAttendance"
+    static let getUsersForWaiting = "GetUsersForWaiting"
     static let getUsersCountForAttendance = "GetUsersCountForAttendance"
     static let attendanceDelete = "AttendanceDelete"
     static let getDetailsForUserAttendance = "GetDetailsForUserAttendance"

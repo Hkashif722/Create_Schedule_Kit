@@ -87,16 +87,16 @@ struct HolidayDay: Identifiable, Equatable {
     let id: Int          // day index within the schedule range
     let date: Date
     var isHoliday: Bool
-    var label: String    // "Holiday" / "Weekend" / custom name
+    var label: String    // "Holiday" / "Working" / custom name
     var isLocked: Bool = false   // the range's first/last day — always a working day
 
-    /// Generates one row per day in [start, end]. Weekends default to holidays
-    /// labelled "Weekend"; weekdays default to working days labelled "Holiday".
+    /// Generates one row per day in [start, end]. Every day defaults to a working day —
+    /// weekends included — so holidays are only ever what the user marks by hand.
     /// Any matching existing rows (same calendar day) are preserved.
     ///
     /// The first and last day of the range are the exception: the schedule has to run on
-    /// its own boundary days, so they are always emitted as locked working days — the
-    /// weekend default and any existing (or API-supplied) marking are both ignored there.
+    /// its own boundary days, so they are always emitted as locked working days and any
+    /// existing (or API-supplied) marking is ignored there.
     static func generate(start: Date, end: Date, existing: [HolidayDay] = []) -> [HolidayDay] {
         let calendar = Calendar.current
         let startDay = calendar.startOfDay(for: start)
@@ -107,8 +107,6 @@ struct HolidayDay: Identifiable, Equatable {
         var cursor = startDay
         var index = 0
         while cursor <= endDay {
-            let weekday = calendar.component(.weekday, from: cursor) // 1 = Sunday, 7 = Saturday
-            let isWeekend = (weekday == 1 || weekday == 7)
             let isEdge = (cursor == startDay || cursor == endDay)
 
             if isEdge {
@@ -116,7 +114,7 @@ struct HolidayDay: Identifiable, Equatable {
             } else if let match = existing.first(where: { calendar.isDate($0.date, inSameDayAs: cursor) }) {
                 rows.append(HolidayDay(id: index, date: cursor, isHoliday: match.isHoliday, label: match.label))
             } else {
-                rows.append(HolidayDay(id: index, date: cursor, isHoliday: isWeekend, label: isWeekend ? "Weekend" : "Holiday"))
+                rows.append(HolidayDay(id: index, date: cursor, isHoliday: false, label: "Holiday"))
             }
 
             guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
@@ -138,6 +136,8 @@ final class ScheduleDraft {
     var deliveryMode: DeliveryMode = .offline
     var webinarType: WebinarType?
     var credential: [ScheduleBasicDetailsDataModel.Credential]?
+    /// Teams meeting link typed by the organiser — only ever set while `ATPTLWCS` is on.
+    var teamsLink: String?
     var timezone: ScheduleBasicDetailsDataModel.TimezoneItem?
     var startDate: Date?
     var endDate: Date?

@@ -154,18 +154,9 @@ extension ScheduleDraft {
         return nil
     }
 
-    /// `"19:10"` → `"7:10 PM"` — the exact inverse of `Payload.apiTime`. The draft keeps
-    /// times as 12-hour strings in `Locale.current` (what `TimePickerTextField` stores).
-    /// Values that don't parse pass through unchanged (`apiTime` also passes `"HH:mm"`
-    /// through, so submits stay correct either way).
+    /// Normalizes fetched API values to the same 24-hour `HH:mm` representation used by
+    /// the picker and payload. Unexpected values pass through so the edit form never loses data.
     static func displayTime(_ raw: String) -> String {
-        let input = DateFormatter()
-        input.locale = Locale(identifier: "en_US_POSIX")
-        input.dateFormat = "HH:mm"
-        guard let date = input.date(from: raw) else { return raw }
-        let output = DateFormatter()
-        output.locale = .current
-        output.dateFormat = "h:mm a"
-        return output.string(from: date)
+        ScheduleDateRules.canonical24HourTime(raw) ?? raw
     }
 }

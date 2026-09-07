@@ -237,6 +237,15 @@ extension AttendanceViewModel {
             toast = Toast(style: .warning, message: "Please select the attendance date.")
             return
         }
+        // Checked in the order the form reads — date, status, then the user list — so the
+        // refusal always names the first thing still missing going down the screen.
+        //
+        // Without the status guard the payload fell back to ATTD and silently marked
+        // everyone Attended: attendance recorded for a status nobody chose.
+        guard !(selectedStatus?.valueCode ?? "").isEmpty else {
+            toast = Toast(style: .warning, message: "Please select the attendance status.")
+            return
+        }
         guard !selectedUsers.isEmpty else {
             toast = Toast(style: .warning, message: "Please select at least one user.")
             return
@@ -415,8 +424,9 @@ extension AttendanceViewModel {
                 model: AttendanceDataModel.GetAttendanceStatusRequest()
             )
             statusOptions = options.filter { $0.isDeleted != true }
-            // Default to the first option (typically "Attended") so Save has a status.
-            selectedStatus = selectedStatus ?? statusOptions.first
+            // Deliberately left unselected. Pre-picking the first option (typically
+            // "Attended") marked attendance for a status the user never chose, and the
+            // field reads "Select status" — so the choice stays theirs to make.
         } catch {
             handleAPIError(error, resetLoadingState: false, showToast: false)
         }
@@ -482,7 +492,9 @@ extension AttendanceViewModel {
     @MainActor
     private func submitAttendance() async {
         guard let date = selectedDate else { return }
-        let statusCode = selectedStatus?.valueCode ?? AttendanceDataModel.StatusCode.attended
+        // Fails closed: the status is the whole point of the record, so a missing one
+        // stops the save rather than defaulting to a value the user never picked.
+        guard let statusCode = selectedStatus?.valueCode, !statusCode.isEmpty else { return }
         let dateString = date.isoDayStartString
 
         let items = selectedUsers.values.map { user in

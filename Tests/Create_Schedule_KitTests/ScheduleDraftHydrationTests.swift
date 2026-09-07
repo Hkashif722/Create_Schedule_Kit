@@ -4,7 +4,7 @@ import SwiftUIUtilities
 @testable import Create_Schedule_Kit
 
 /// `ScheduleDraft.apply(details:modules:timezones:)` mapping tests — the details → draft
-/// conversions the edit flow depends on (dates, 24h→12h times, trainer id round-trip,
+/// conversions the edit flow depends on (dates, normalized 24-hour times, trainer id round-trip,
 /// module/timezone resolution + fallbacks, holidays, coordinator).
 @Suite struct ScheduleDraftHydrationTests {
 
@@ -93,10 +93,10 @@ import SwiftUIUtilities
         #expect(fallback.timezone?.name == "India Standard Time")
     }
 
-    @Test func apiTimesConvertToPickerFormatAndRoundTrip() throws {
+    @Test func apiTimesStayInCanonical24HourPickerFormat() throws {
         let draft = try hydratedDraft()
-        // displayTime is the inverse of apiTime — the submit path must reproduce
-        // the original 24-hour values exactly.
+        #expect(draft.startTime == "19:10")
+        #expect(draft.endTime == "19:12")
         #expect(CreateScheduleWizardDataModel.Payload.apiTime(try #require(draft.startTime)) == "19:10")
         #expect(CreateScheduleWizardDataModel.Payload.apiTime(try #require(draft.endTime)) == "19:12")
     }

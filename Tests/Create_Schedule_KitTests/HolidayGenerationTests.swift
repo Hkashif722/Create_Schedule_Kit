@@ -14,12 +14,19 @@ private func day(_ y: Int, _ m: Int, _ d: Int) -> Date {
         #expect(rows.count == 7)
     }
 
-    @Test func weekendsDefaultToHolidaysLabelledWeekend() {
+    @Test func weekendsAreNotAutoMarkedAsHolidays() {
+        // Jun 17–23 2026 spans Sat Jun 20 and Sun Jun 21. Nothing is marked up front —
+        // holidays are the user's own picks (Bug: weekends auto-marked by default).
         let rows = HolidayDay.generate(start: day(2026, 6, 17), end: day(2026, 6, 23))
-        let marked = rows.filter { $0.isHoliday }
-        // Jun 20 (Sat) + Jun 21 (Sun)
-        #expect(marked.count == 2)
-        #expect(marked.allSatisfy { $0.label == "Weekend" })
+        #expect(rows.contains { Calendar.current.component(.weekday, from: $0.date) == 7 })
+        #expect(rows.contains { Calendar.current.component(.weekday, from: $0.date) == 1 })
+        #expect(rows.allSatisfy { !$0.isHoliday })
+    }
+
+    @Test func everyGeneratedDayDefaultsToAWorkingDay() {
+        let rows = HolidayDay.generate(start: day(2026, 6, 17), end: day(2026, 6, 23))
+        #expect(rows.count == 7)
+        #expect(rows.allSatisfy { !$0.isHoliday && $0.label == "Holiday" })
     }
 
     @Test func weekdaysDefaultToWorkingDaysLabelledHoliday() {
@@ -53,9 +60,9 @@ private func day(_ y: Int, _ m: Int, _ d: Int) -> Date {
         #expect(first.isLocked)
         #expect(last.isHoliday == false)
         #expect(last.isLocked)
-        // The interior Sunday (Jun 21) is still auto-marked.
+        // The interior Sunday (Jun 21) is markable but not marked for the user.
         let jun21 = rows.first { Calendar.current.isDate($0.date, inSameDayAs: day(2026, 6, 21)) }
-        #expect(jun21?.isHoliday == true)
+        #expect(jun21?.isHoliday == false)
         #expect(jun21?.isLocked == false)
     }
 
@@ -70,7 +77,7 @@ private func day(_ y: Int, _ m: Int, _ d: Int) -> Date {
         let rows = HolidayDay.generate(start: start, end: end, existing: existing)
         #expect(rows.first?.isHoliday == false)
         #expect(rows.last?.isHoliday == false)
-        #expect(rows.filter { $0.isHoliday }.count == 2) // only the interior weekend
+        #expect(rows.filter { $0.isHoliday }.isEmpty) // nothing else was marked either
     }
 
     @Test func twoDayRangeHasNoMarkableDays() {

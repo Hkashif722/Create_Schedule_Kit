@@ -15,13 +15,14 @@ final class ScheduleBasicDetailsViewModel: BaseViewModel {
 
     // MARK: - Dependencies
     private let draft: ScheduleDraft
-    /// Edit mode locks the schedule-identity fields (course, module, delivery, webinar).
+    /// Edit mode locks course, module, delivery and webinar; schedule-code editing follows ASCFE.
     let isEditMode: Bool
     private let onBack: () -> Void
     private let onContinue: () -> Void
 
     // MARK: - Published State
     @Published var scheduleCode: String = ""
+    @Published private(set) var isScheduleCodeEditable: Bool = false
     @Published var courseResults: [ScheduleBasicDetailsDataModel.Course] = []
     @Published var selectedCourse: ScheduleBasicDetailsDataModel.Course?
     @Published var modules: [ScheduleBasicDetailsDataModel.ModuleItem] = []
@@ -49,10 +50,28 @@ final class ScheduleBasicDetailsViewModel: BaseViewModel {
     /// field on this token so it is rebuilt from the model instead.
     @Published private(set) var endTimeFieldToken: Int = 0
 
+    /// Bumped whenever a date field has to resync its display from the model — currently
+    /// a refused Sunday selection. `DatePickerTextFieldPkg` keeps the tapped day in its
+    /// own `@State`, so clearing the model alone cannot pull a rejected value off the
+    /// screen; the view keys the date fields on this token so they are rebuilt from the
+    /// model instead. Same remount trick as `endTimeFieldToken`.
+    @Published private(set) var dateFieldToken: Int = 0
+
+    /// `ATPTLWCS` — unlocks the hand-entered Teams link. Defaults to off: a config outage
+    /// must not surface a field the tenant has not enabled.
+    @Published private(set) var isTeamsStaticLinkEnabled: Bool = false
+    @Published var teamsLink: String = ""
+    private var hasRequestedTeamsLinkConfig = false
+    /// Bumped when the link field must resync from the model — currently a provider switch.
+    /// `MultilineTextInputField` adopts `initialText` only on first appear, so the view keys
+    /// the field on this token. Same trick as `endTimeFieldToken`.
+    @Published private(set) var linkFieldToken: Int = 0
+
     @Published var holidaysEnabled: Bool = false
     @Published var holidays: [HolidayDay] = []
 
     private let dateFormat = CreateScheduleKitAPIManager.shared.getConfiguaredDate
+    private var hasRequestedScheduleCodeConfig = false
 
     // MARK: - Init
     init(router: AnyRouter, draft: ScheduleDraft, isEditMode: Bool = false, onBack: @escaping () -> Void, onContinue: @escaping () -> Void) {
@@ -65,6 +84,14 @@ final class ScheduleBasicDetailsViewModel: BaseViewModel {
     }
 
     func loadData() {
+        if !hasRequestedScheduleCodeConfig {
+            hasRequestedScheduleCodeConfig = true
+            Task { [weak self] in await self?.fetchScheduleCodeEditingConfig() }
+        }
+        if !hasRequestedTeamsLinkConfig {
+            hasRequestedTeamsLinkConfig = true
+            Task { [weak self] in await self?.fetchTeamsLinkConfig() }
+        }
         // Edit mode keeps the fetched schedule's own code — never mint a new one.
         if scheduleCode.isEmpty, !isEditMode {
             Task { [weak self] in await self?.fetchScheduleCode() }
@@ -86,8 +113,9 @@ final class ScheduleBasicDetailsViewModel: BaseViewModel {
         startDate = draft.startDate
         endDate = draft.endDate
         registrationEndDate = draft.registrationEndDate
-        startTime = draft.startTime
-        endTime = draft.endTime
+        startTime = draft.startTime.map { ScheduleDateRules.canonical24HourTime($0) ?? $0 }
+        endTime = draft.endTime.map { ScheduleDateRules.canonical24HourTime($0) ?? $0 }
+        teamsLink = draft.teamsLink ?? ""
         holidays = draft.holidays
         holidaysEnabled = ScheduleDateRules.hasMarkableHolidays(start: draft.startDate, end: draft.endDate)
             && draft.holidays.contains { $0.isHoliday }
@@ -123,6 +151,30 @@ extension ScheduleBasicDetailsViewModel {
         return decrypted.isEmpty ? raw : decrypted
     }
 
+    // MARK: Meeting link
+
+    /// Teams asks for a link by hand once `ATPTLWCS` is on. Hidden in edit mode:
+    /// `UpdatePayload` echoes the fetched schedule's own meeting details and never reads
+    /// the draft, so an editable link there would go nowhere.
+    var showTeamsLinkField: Bool {
+        !isEditMode
+            && showWebinarSection
+            && WebinarLinkRules.usesStaticLink(for: webinarType, isEnabled: isTeamsStaticLinkEnabled)
+    }
+
+    /// The link is only required where it is actually shown.
+    var requiresTeamsLink: Bool { showTeamsLinkField }
+
+    /// Only complains once something has been typed — an untouched required field is
+    /// already marked by its asterisk.
+    var teamsLinkError: String? {
+        guard requiresTeamsLink,
+              !WebinarLinkRules.normalizedLink(teamsLink).isEmpty,
+              !WebinarLinkRules.isValidLink(teamsLink)
+        else { return nil }
+        return "Enter a valid meeting link starting with https://"
+    }
+
     var startDateString: String? { startDate.map(format) }
     var endDateString: String? { endDate.map(format) }
     var registrationEndDateString: String? { registrationEndDate.map(format) }
@@ -147,8 +199,14 @@ extension ScheduleBasicDetailsViewModel {
     }
 
     var canContinue: Bool {
+        if isScheduleCodeEditable,
+           scheduleCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return false
+        }
         guard selectedCourse != nil, selectedModule != nil else { return false }
         if deliveryMode == .online, webinarType == nil { return false }
+        // The hand-entered Teams link is required once the tenant unlocks it.
+        if requiresTeamsLink, !WebinarLinkRules.isValidLink(teamsLink) { return false }
         guard startDate != nil, endDate != nil, registrationEndDate != nil else { return false }
         guard startTime != nil, endTime != nil else { return false }
         // Backstop for pairs that never went through the pickers — e.g. a draft hydrated
@@ -192,6 +250,10 @@ extension ScheduleBasicDetailsViewModel {
         selectedModule = module
     }
 
+    func didSelectTimezone(_ timezone: ScheduleBasicDetailsDataModel.TimezoneItem) {
+        selectedTimezone = timezone
+    }
+
     func didSelectDelivery(_ mode: DeliveryMode) {
         deliveryMode = mode
         if mode == .offline {
@@ -199,14 +261,18 @@ extension ScheduleBasicDetailsViewModel {
             credentials = nil
             selectedCredential = nil
             isCredentialRevealed = false
+            // An offline schedule has no meeting at all.
+            clearTeamsLink()
         }
     }
 
     func didSelectWebinarType(_ type: WebinarType) {
+        guard type != webinarType else { return }
         webinarType = type
         credentials = nil
         selectedCredential = nil
         isCredentialRevealed = false
+        clearTeamsLink()
         guard type.hasCredentialAPI else { return }
         Task { [weak self] in await self?.fetchCredential(for: type) }
     }
@@ -220,9 +286,25 @@ extension ScheduleBasicDetailsViewModel {
         isCredentialRevealed.toggle()
     }
 
+    // MARK: Meeting link
+
+    /// The model keeps the sanitized value so a hard-wrapped paste can never reach the
+    /// payload; the field itself keeps whatever the user typed until it is remounted.
+    func didEditTeamsLink(_ text: String) {
+        teamsLink = WebinarLinkRules.normalizedLink(text)
+    }
+
+    /// A link belongs to the provider it was pasted for, so it does not survive a switch.
+    private func clearTeamsLink() {
+        teamsLink = ""
+        linkFieldToken += 1
+    }
+
+
     // MARK: Date selection
     func didSelectStartDate(_ string: String) {
         guard let date = parse(string) else { return }
+        guard !isRefusedSunday(date) else { return }
         startDate = date
         // Auto-populate end & registration end with the start date.
         let populated = ScheduleDateRules.autoPopulated(forStart: date)
@@ -233,6 +315,7 @@ extension ScheduleBasicDetailsViewModel {
 
     func didSelectEndDate(_ string: String) {
         guard let date = parse(string) else { return }
+        guard !isRefusedSunday(date) else { return }
         guard let start = startDate else { endDate = date; syncHolidaysForRange(); return }
         let clamped = ScheduleDateRules.clampedEnd(date, start: start)
         endDate = clamped
@@ -244,11 +327,22 @@ extension ScheduleBasicDetailsViewModel {
 
     func didSelectRegistrationEndDate(_ string: String) {
         guard let date = parse(string) else { return }
+        guard !isRefusedSunday(date) else { return }
         registrationEndDate = date
     }
 
+    /// Sundays are non-working days, so none of the three schedule dates may land on one.
+    /// The calendar modal cannot grey out a single weekday, so the selection is refused
+    /// here: the model keeps its previous value and the field is remounted from it.
+    private func isRefusedSunday(_ date: Date) -> Bool {
+        guard ScheduleDateRules.isSunday(date) else { return false }
+        dateFieldToken += 1
+        toast = Toast(style: .warning, message: "Sunday is not a working day. Please select another date.")
+        return true
+    }
+
     func didSelectStartTime(_ string: String) {
-        startTime = string
+        startTime = ScheduleDateRules.canonical24HourTime(string) ?? string
         // A new start can strand an end time that was valid against the old one. Clear it
         // rather than silently keeping an out-of-order pair; the end field is keyed on
         // `startTime` in the view, so it visibly resets to its placeholder.
@@ -260,12 +354,13 @@ extension ScheduleBasicDetailsViewModel {
     }
 
     func didSelectEndTime(_ string: String) {
-        guard !ScheduleDateRules.isEndTimeBeforeOrEqualToStart(start: startTime, end: string) else {
+        let normalized = ScheduleDateRules.canonical24HourTime(string) ?? string
+        guard !ScheduleDateRules.isEndTimeBeforeOrEqualToStart(start: startTime, end: normalized) else {
             endTimeFieldToken += 1
             toast = Toast(style: .warning, message: "End time must be later than start time.")
             return
         }
-        endTime = string
+        endTime = normalized
     }
 
     // MARK: Holidays
@@ -324,7 +419,9 @@ extension ScheduleBasicDetailsViewModel {
     }
 
     private func commitToDraft() {
-        draft.scheduleCode = scheduleCode
+        draft.scheduleCode = isScheduleCodeEditable
+            ? scheduleCode.trimmingCharacters(in: .whitespacesAndNewlines)
+            : scheduleCode
         draft.course = selectedCourse
         draft.module = selectedModule
         draft.deliveryMode = deliveryMode
@@ -342,12 +439,50 @@ extension ScheduleBasicDetailsViewModel {
         draft.registrationEndDate = registrationEndDate
         draft.startTime = startTime
         draft.endTime = endTime
+        // Only ever carry a link the current provider can actually use.
+        draft.teamsLink = requiresTeamsLink
+            ? WebinarLinkRules.normalizedLink(teamsLink).isEmpty ? nil : WebinarLinkRules.normalizedLink(teamsLink)
+            : nil
         draft.holidays = holidays
     }
 }
 
 // MARK: - API
 extension ScheduleBasicDetailsViewModel {
+
+    /// `ATPTLWCS` — unlocks the hand-entered Teams link. Mirrors the ASCFE fetch: silent on
+    /// failure and fails closed, so a config outage hides the field rather than blocking
+    /// the wizard or nagging the organiser.
+    private func fetchTeamsLinkConfig() async {
+        do {
+            let response = try await ApiService.shared.requestGetHeader(
+                type: ScheduleListDataModel.ConfigValueResponse.self,
+                model: ScheduleListDataModel.GetConfigValueRequest(
+                    key: TeamsLinkPolicy.configurationCode
+                )
+            )
+            isTeamsStaticLinkEnabled = TeamsLinkPolicy.isEnabled(by: response)
+        } catch {
+            isTeamsStaticLinkEnabled = false
+            handleAPIError(error, resetLoadingState: false, showToast: false)
+        }
+    }
+
+    private func fetchScheduleCodeEditingConfig() async {
+        do {
+            let response = try await ApiService.shared.requestGetHeader(
+                type: ScheduleListDataModel.ConfigValueResponse.self,
+                model: ScheduleListDataModel.GetConfigValueRequest(
+                    key: ScheduleCodeEditingPolicy.configurationCode
+                )
+            )
+            isScheduleCodeEditable = ScheduleCodeEditingPolicy.isEnabled(by: response)
+        } catch {
+            // Configuration-backed permissions fail closed; generated schedule codes remain locked.
+            isScheduleCodeEditable = false
+            handleAPIError(error, resetLoadingState: false, showToast: false)
+        }
+    }
 
     private func fetchScheduleCode() async {
         do {

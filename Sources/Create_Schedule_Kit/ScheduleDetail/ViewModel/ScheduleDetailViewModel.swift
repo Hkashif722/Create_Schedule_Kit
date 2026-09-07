@@ -101,6 +101,22 @@ extension ScheduleDetailViewModel {
         router.dismissScreen()
     }
 
+    /// Both lists are read-only, so they stay open to anyone who can view the schedule —
+    /// unlike nominating, which an external trainer cannot do.
+    func didTapWaitingList() { openUsers(mode: .waiting) }
+
+    func didTapAvailability() { openUsers(mode: .availability) }
+
+    private func openUsers(mode: ScheduleUsersDataModel.Mode) {
+        let navModel = NavigationViewModel.ScheduleUsersNavModel(
+            mode: mode,
+            scheduleID: schedule.id,
+            courseID: schedule.courseID ?? 0,
+            moduleID: schedule.moduleId ?? 0
+        )
+        NavigationService.shared.navigate(using: router, to: AppNavigationDestination.scheduleUsers(navModel))
+    }
+
     func didTapAddNominee() {
         guard permissions.canNominate else { return }
         let navModel = NavigationViewModel.NominateUsersNavModel(

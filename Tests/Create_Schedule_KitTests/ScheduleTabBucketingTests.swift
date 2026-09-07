@@ -3,9 +3,8 @@
 //  Create_Schedule_KitTests
 //
 //  Pins the Upcoming/Ongoing/Completed split. `Schedule.listTab` is the single source of truth
-//  for both the list tabs and the detail header pill: Completed stays day-granular off the end
-//  date (a schedule ending today is not yet completed, one that ended yesterday is), and a
-//  schedule whose start date + time has passed is Ongoing rather than Upcoming.
+//  for both the list tabs and the detail header pill. Start and end dates are combined with
+//  their 24-hour times so same-day schedules transition at the correct moments.
 //
 
 import Foundation
@@ -21,10 +20,12 @@ import Testing
     private func schedule(
         startDate: String? = "2026-08-10T00:00:00",
         startTime: String? = "09:00:00",
+        endTime: String? = "17:00:00",
         endDate: String?
     ) throws -> ScheduleListDataModel.Schedule {
         let startValue = startDate.map { "\"\($0)\"" } ?? "null"
         let startTimeValue = startTime.map { "\"\($0)\"" } ?? "null"
+        let endTimeValue = endTime.map { "\"\($0)\"" } ?? "null"
         let endValue = endDate.map { "\"\($0)\"" } ?? "null"
         let json = """
         {
@@ -35,7 +36,7 @@ import Testing
           "startDate": \(startValue),
           "endDate": \(endValue),
           "startTime": \(startTimeValue),
-          "endTime": "17:00:00",
+          "endTime": \(endTimeValue),
           "city": "Pune",
           "placeName": "Main Hall",
           "academyAgencyName": "Enthralltech",
@@ -75,7 +76,7 @@ import Testing
     @Test func pastEndDateIsCompleted() throws {
         let row = try schedule(endDate: apiDate(daysFromToday: -1))
 
-        #expect(row.isUpcoming == false)
+        #expect(row.isUpcoming(now: Date()) == false)
         #expect(row.statusText == "Completed")
     }
 
@@ -86,41 +87,39 @@ import Testing
         let row = try schedule(endDate: apiDate(daysFromToday: -3, dateOnly: true))
 
         #expect(row.endDateValue != nil)
-        #expect(row.isUpcoming == false)
+        #expect(row.isUpcoming(now: Date()) == false)
         #expect(row.statusText == "Completed")
     }
 
-    @Test func endDateTodayIsStillUpcoming() throws {
-        let row = try schedule(endDate: apiDate(daysFromToday: 0))
+    @Test func beforeEndTimeOnEndDateIsNotCompleted() throws {
+        let row = try schedule(endDate: "2026-08-10T00:00:00")
 
-        #expect(row.isUpcoming)
+        #expect(row.hasEnded(now: date("2026-08-10T16:59:59")) == false)
+        #expect(row.listTab(now: date("2026-08-10T16:59:59")) == .ongoing)
     }
 
-    /// Day-granular on both sides: a time-of-day earlier than "now" on the end date does not tip
-    /// the row into Completed.
-    @Test func endDateEarlierTodayIsStillUpcoming() throws {
-        let today = Calendar.current.startOfDay(for: Date())
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
-        formatter.dateFormat = "yyyy-MM-dd'T'"
-        let row = try schedule(endDate: formatter.string(from: today) + "00:01:00")
+    /// The regression: a same-day schedule must move to Completed at its 24-hour end time,
+    /// rather than remaining Ongoing until the following midnight.
+    @Test func endTimeOnEndDateMovesScheduleToCompleted() throws {
+        let row = try schedule(endTime: "17:00", endDate: "2026-08-10T00:00:00")
 
-        #expect(row.isUpcoming)
+        #expect(row.hasEnded(now: date("2026-08-10T17:00:00")))
+        #expect(row.listTab(now: date("2026-08-10T17:00:00")) == .completed)
+        #expect(row.statusText(now: date("2026-08-10T18:00:00")) == "Completed")
     }
 
-    @Test func futureEndDateIsUpcoming() throws {
+    @Test func futureEndDateHasNotEnded() throws {
         let row = try schedule(endDate: apiDate(daysFromToday: 7))
 
-        #expect(row.isUpcoming)
+        #expect(row.hasEnded(now: Date()) == false)
     }
 
     @Test(arguments: [nil, "", "not-a-date"] as [String?])
-    func unparseableEndDateReadsAsUpcoming(_ raw: String?) throws {
+    func unparseableEndDateReadsAsNotEnded(_ raw: String?) throws {
         let row = try schedule(endDate: raw)
 
         #expect(row.endDateValue == nil)
-        #expect(row.isUpcoming)
+        #expect(row.hasEnded(now: Date()) == false)
     }
 
     // MARK: - The three-way split (Upcoming → Ongoing → Completed)
@@ -141,6 +140,7 @@ import Testing
         let now = date("2026-08-10T08:59:00")
 
         #expect(row.hasStarted(now: now) == false)
+        #expect(row.isUpcoming(now: now))
         #expect(row.listTab(now: now) == .upcoming)
         #expect(row.statusText(now: now) == "Upcoming")
     }
@@ -151,8 +151,7 @@ import Testing
         #expect(row.listTab(now: date("2026-08-09T12:00:00")) == .upcoming)
     }
 
-    /// Completed wins over Ongoing: once the end day has passed the schedule is Completed,
-    /// day-granular as before.
+    /// Completed wins over Ongoing once the full end moment has passed.
     @Test func endDayPassedIsCompleted() throws {
         let row = try schedule(endDate: "2026-08-11T00:00:00")
 
@@ -183,6 +182,28 @@ import Testing
 
         #expect(row.listTab(now: date("2026-08-10T09:01:00")) == .ongoing)
         #expect(row.listTab(now: date("2026-08-10T08:59:00")) == .upcoming)
+    }
+
+    @Test func apiTimesWithSecondsDriveBothBoundaries() throws {
+        let row = try schedule(
+            startTime: "09:00:30",
+            endTime: "17:00:30",
+            endDate: "2026-08-10T00:00:00"
+        )
+
+        #expect(row.listTab(now: date("2026-08-10T09:00:29")) == .upcoming)
+        #expect(row.listTab(now: date("2026-08-10T09:00:30")) == .ongoing)
+        #expect(row.listTab(now: date("2026-08-10T17:00:30")) == .completed)
+    }
+
+    /// Without a usable end time, retain the safe historical fallback: the schedule
+    /// remains Ongoing for its entire end date and completes at the following midnight.
+    @Test(arguments: [nil, "", "later"] as [String?])
+    func missingEndTimeFallsBackToEndOfDay(_ raw: String?) throws {
+        let row = try schedule(endTime: raw, endDate: "2026-08-10T00:00:00")
+
+        #expect(row.listTab(now: date("2026-08-10T23:59:59")) == .ongoing)
+        #expect(row.listTab(now: date("2026-08-11T00:00:00")) == .completed)
     }
 
     @Test func unparseableStartDateReadsAsUpcoming() throws {

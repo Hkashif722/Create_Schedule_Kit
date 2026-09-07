@@ -13,6 +13,8 @@ struct ScheduleDetailHeaderCard: View {
 
     let schedule: ScheduleListDataModel.Schedule
     let deliveryText: String
+    let onWaitingList: () -> Void
+    let onAvailability: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -33,6 +35,9 @@ struct ScheduleDetailHeaderCard: View {
                 }
                 Spacer(minLength: 0)
             }
+
+            chipRow
+                .padding(.top, 14)
 
             Divider().padding(.vertical, 14)
 
@@ -62,6 +67,15 @@ struct ScheduleDetailHeaderCard: View {
                 .fill(Color(.systemBackground))
                 .shadow(color: .black.opacity(0.06), radius: 8, y: 2)
         )
+    }
+
+    /// The two user lists this schedule can open.
+    private var chipRow: some View {
+        HStack(spacing: 10) {
+            CSNavChip(title: "Waiting List", systemImage: "hourglass", onTap: onWaitingList)
+            CSNavChip(title: "Availability", systemImage: "person.2", onTap: onAvailability)
+            Spacer(minLength: 0)
+        }
     }
 
     private var statusPill: some View {
@@ -106,7 +120,9 @@ struct ScheduleDetailHeaderCard: View {
             trainerDescription: nil, scheduleType: "Planned Training", purpose: "Planned Training",
             timezone: nil, isWebinar: false, webinarType: nil
         ),
-        deliveryText: "Offline · Bangalore"
+        deliveryText: "Offline · Bangalore",
+        onWaitingList: {},
+        onAvailability: {}
     )
     .padding()
 }

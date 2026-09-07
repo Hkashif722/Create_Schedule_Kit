@@ -12,6 +12,18 @@ enum ScheduleDateRules {
     /// Number of days before the start date that registration may close.
     static let registrationLeadDays = 3
 
+    // MARK: - Non-working days
+
+    /// Weekdays no schedule date may land on, in `Calendar` numbering — Sunday only.
+    /// Handed to the date fields, which render these days dimmed and un-tappable.
+    static let nonWorkingWeekdays: Set<Int> = [1] // 1 = Sunday
+
+    /// Backstop for a Sunday that never came from a picker — a hydrated draft, or a
+    /// calendar that somehow hands one back.
+    static func isSunday(_ date: Date, calendar: Calendar = .current) -> Bool {
+        nonWorkingWeekdays.contains(calendar.component(.weekday, from: date))
+    }
+
     /// Selecting a start date auto-populates end and registration-end with the start date.
     static func autoPopulated(forStart start: Date) -> (end: Date, registrationEnd: Date) {
         (end: start, registrationEnd: start)
@@ -50,27 +62,69 @@ enum ScheduleDateRules {
 
     // MARK: - Time of day
 
+    /// Canonical format used by the wizard, payloads, and schedule-status bucketing.
+    static let timeFormat = "HH:mm"
+
+    /// Seconds since midnight for an API or legacy picker time.
+    ///
+    /// New values are always stored as 24-hour `HH:mm`. The parser also accepts API
+    /// values with seconds and the old locale-dependent 12-hour picker representation,
+    /// so schedules created before the format change continue to edit and filter correctly.
+    static func secondsSinceMidnight(_ raw: String, calendar: Calendar = .current) -> Int? {
+        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parts = value.split(separator: ":", omittingEmptySubsequences: false)
+        if parts.count == 2 || parts.count == 3,
+           parts.allSatisfy({ !$0.isEmpty }),
+           let hour = Int(parts[0]),
+           let minute = Int(parts[1]),
+           (0...23).contains(hour),
+           (0...59).contains(minute) {
+            let second: Int
+            if parts.count == 3 {
+                guard let parsedSecond = Int(parts[2]), (0...59).contains(parsedSecond) else { return nil }
+                second = parsedSecond
+            } else {
+                second = 0
+            }
+            return hour * 3_600 + minute * 60 + second
+        }
+
+        // Compatibility with drafts persisted by the former `h:mm a` picker.
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "h:mm a"
+        formatter.isLenient = false
+        guard let date = formatter.date(from: value) else { return nil }
+        let dateParts = calendar.dateComponents([.hour, .minute, .second], from: date)
+        guard let hour = dateParts.hour, let minute = dateParts.minute else { return nil }
+        return hour * 3_600 + minute * 60 + (dateParts.second ?? 0)
+    }
+
     /// Minutes since midnight for a stored time string.
     ///
-    /// The draft keeps times as 12-hour `"h:mm a"` strings in `Locale.current` — exactly
-    /// what `TimePickerTextField` emits — so that is tried first. `"HH:mm"` is the
-    /// fallback because `ScheduleDraft.displayTime` passes unconvertible API values
-    /// through unchanged. `nil` when neither format parses.
+    /// The draft stores 24-hour `HH:mm` values. API `HH:mm:ss` values and legacy
+    /// 12-hour picker values are accepted for backward compatibility.
     static func minutesSinceMidnight(_ raw: String, calendar: Calendar = .current) -> Int? {
-        let candidates: [(format: String, locale: Locale)] = [
-            ("h:mm a", .current),
-            ("HH:mm", Locale(identifier: "en_US_POSIX"))
-        ]
-        for candidate in candidates {
-            let formatter = DateFormatter()
-            formatter.locale = candidate.locale
-            formatter.dateFormat = candidate.format
-            guard let date = formatter.date(from: raw) else { continue }
-            let parts = calendar.dateComponents([.hour, .minute], from: date)
-            guard let hour = parts.hour, let minute = parts.minute else { continue }
-            return hour * 60 + minute
-        }
-        return nil
+        secondsSinceMidnight(raw, calendar: calendar).map { $0 / 60 }
+    }
+
+    /// Normalizes supported time representations to the 24-hour value expected by the API.
+    static func canonical24HourTime(_ raw: String, calendar: Calendar = .current) -> String? {
+        guard let seconds = secondsSinceMidnight(raw, calendar: calendar) else { return nil }
+        return String(format: "%02d:%02d", seconds / 3_600, (seconds % 3_600) / 60)
+    }
+
+    /// Merges a calendar day with a parsed time of day.
+    static func moment(
+        on date: Date,
+        time raw: String,
+        calendar: Calendar = .current
+    ) -> Date? {
+        guard let seconds = secondsSinceMidnight(raw, calendar: calendar) else { return nil }
+        let dayStart = calendar.startOfDay(for: date)
+        return calendar.date(byAdding: .second, value: seconds, to: dayStart)
     }
 
     /// True when the pair is provably out of order — both times parse and the end is not
@@ -96,11 +150,10 @@ enum ScheduleDateRules {
         startTime: String?,
         calendar: Calendar = .current
     ) -> Date {
-        let dayStart = calendar.startOfDay(for: startDate)
         guard let raw = startTime,
-              let minutes = minutesSinceMidnight(raw, calendar: calendar)
-        else { return dayStart }
-        return calendar.date(byAdding: .minute, value: minutes, to: dayStart) ?? dayStart
+              let moment = moment(on: startDate, time: raw, calendar: calendar)
+        else { return calendar.startOfDay(for: startDate) }
+        return moment
     }
 
     /// Gate for the post-create nomination prompt — only the start matters, so an already-running multi-day schedule counts as past.

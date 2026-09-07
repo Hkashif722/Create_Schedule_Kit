@@ -26,6 +26,17 @@ enum CreateScheduleWizardDataModel {
         var headers: [String: String]? { nil }
     }
 
+    /// POST create schedule — the plain route, used when the client already holds the
+    /// meeting details (a typed Teams link or a generated provider meeting) rather than
+    /// asking the server to mint one.
+    struct CreateScheduleRequest: EndpointModel {
+        var path: String {
+            [APIConst.courseBaseUrl, APIConst.versionAPI, APIConst.iltSchedule].joined(separator: "/")
+        }
+        var method: HTTPMethod { .post }
+        var headers: [String: String]? { nil }
+    }
+
     // MARK: - Response envelope
 
     /// `{"statusCode":200,"message":null,"responseObject":null,"description":"success"}`
@@ -33,6 +44,23 @@ enum CreateScheduleWizardDataModel {
         let statusCode: Int?
         let message: String?
         let description: String?
+
+        /// The server's own explanation of a refused submit.
+        ///
+        /// This envelope carries it under `message` on some routes and `description` on
+        /// others, so both are consulted — reading only `message` left a real reason
+        /// ("training place is already booked") hidden behind a generic fallback.
+        /// `"success"` is ignored: it is the description these routes send on the happy
+        /// path and would read absurdly in a failure toast.
+        var serverMessage: String? {
+            for candidate in [message, description] {
+                let trimmed = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                guard !trimmed.isEmpty, trimmed.caseInsensitiveCompare("success") != .orderedSame
+                else { continue }
+                return trimmed
+            }
+            return nil
+        }
     }
 
     // MARK: - Nested DTOs
@@ -55,6 +83,39 @@ enum CreateScheduleWizardDataModel {
         let date: String
         let isHoliday: Bool
         let reason: String
+    }
+
+    /// One entry of `teamsScheduleDetails`, carrying a hand-entered Teams link. Every other
+    /// field is the server's own scaffolding — the web client sends these zeros and nulls
+    /// verbatim and the API expects the shape, so they are reproduced here rather than
+    /// omitted.
+    struct TeamsScheduleDetailDTO: Encodable {
+        var id = 0
+        var courseID = 0
+        var scheduleID = 0
+        var meetingId: String? = nil
+        var startTime: String? = nil
+        var endTime: String? = nil
+        var iCalUId: String? = nil
+        let joinUrl: String
+        var userWebinarId = 0
+
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(id, forKey: .id)
+            try c.encode(courseID, forKey: .courseID)
+            try c.encode(scheduleID, forKey: .scheduleID)
+            try c.encode(meetingId, forKey: .meetingId)
+            try c.encode(startTime, forKey: .startTime)
+            try c.encode(endTime, forKey: .endTime)
+            try c.encode(iCalUId, forKey: .iCalUId)
+            try c.encode(joinUrl, forKey: .joinUrl)
+            try c.encode(userWebinarId, forKey: .userWebinarId)
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case id, courseID, scheduleID, meetingId, startTime, endTime, iCalUId, joinUrl, userWebinarId
+        }
     }
 
     // MARK: - Payload
@@ -89,6 +150,8 @@ enum CreateScheduleWizardDataModel {
         let isWebinar: Bool
         let webinarType: String?
         let webinarAccount: String?
+        /// Empty unless the organiser entered a Teams link by hand.
+        let teamsScheduleDetails: [TeamsScheduleDetailDTO]
 
         enum CodingKeys: String, CodingKey {
             case id, scheduleCode, batchCode, batchName, batchId
@@ -112,6 +175,10 @@ enum CreateScheduleWizardDataModel {
             case createdBy, createdDate, modifiedDate, modifiedBy
             case timezone, isWebinar, webinarAccount
         }
+
+        /// True when this body already carries the meeting the schedule should use, which
+        /// is what decides between `CreateScheduleRequest` and `PostWithMeetingRequest`.
+        var carriesClientMeetingDetails: Bool { !teamsScheduleDetails.isEmpty }
 
         func encode(to encoder: Encoder) throws {
             var c = encoder.container(keyedBy: CodingKeys.self)
@@ -156,7 +223,8 @@ enum CreateScheduleWizardDataModel {
             if isWebinar {
                 try c.encode(webinarType, forKey: .webinarType)
             }
-            try c.encode([String](), forKey: .teamsScheduleDetails)
+            // Encodes as `[]` whenever no link was typed, which is what this body has always sent.
+            try c.encode(teamsScheduleDetails, forKey: .teamsScheduleDetails)
             try c.encode("Planned Training", forKey: .purpose)
             try c.encodeNil(forKey: .requestApproval)
             try c.encode(isFeedback, forKey: .isFeedback)
@@ -211,6 +279,16 @@ extension CreateScheduleWizardDataModel.Payload {
 
         let feedbackId = draft.feedbackModule.flatMap { Int($0.id) }
 
+        // A hand-entered link only ever exists for Teams while `ATPTLWCS` is on; every
+        // other schedule keeps sending the empty array this body has always carried.
+        let teamsScheduleDetails: [DM.TeamsScheduleDetailDTO] = {
+            guard isWebinar, draft.webinarType == .teams,
+                  let link = draft.teamsLink.map(WebinarLinkRules.normalizedLink),
+                  !link.isEmpty
+            else { return [] }
+            return [DM.TeamsScheduleDetailDTO(joinUrl: link)]
+        }()
+
         self.init(
             scheduleCode: draft.scheduleCode,
             moduleID: draft.module?.id ?? 0,
@@ -240,7 +318,8 @@ extension CreateScheduleWizardDataModel.Payload {
             timezone: draft.timezone?.value ?? "",
             isWebinar: isWebinar,
             webinarType: isWebinar ? draft.webinarType?.rawValue : nil,
-            webinarAccount: isWebinar ? draft.credential?.first?.teamsEmail : nil
+            webinarAccount: isWebinar ? draft.credential?.first?.teamsEmail : nil,
+            teamsScheduleDetails: teamsScheduleDetails
         )
     }
 
@@ -255,19 +334,11 @@ extension CreateScheduleWizardDataModel.Payload {
         formatter(format: "yyyy-MM-dd").string(from: date)
     }
 
-    /// `"4:47 PM"` → `"16:47"`. The server expects a 24-hour `TimeSpan`, but `TimePickerTextField`
-    /// stores the picked time as a 12-hour `"h:mm a"` string (in `Locale.current`). Parse with that
-    /// same format/locale, then emit `"HH:mm"` with a fixed locale so the result is locale-independent.
-    /// Passes the value through unchanged if it isn't 12-hour (already `"HH:mm"` or unparsable).
+    /// Returns the API's canonical 24-hour `HH:mm` representation. API values with seconds
+    /// and old 12-hour picker values are normalized as well, which keeps existing drafts safe.
+    /// Unexpected values pass through unchanged rather than being silently erased.
     static func apiTime(_ raw: String) -> String {
-        let input = DateFormatter()
-        input.locale = .current
-        input.dateFormat = "h:mm a"
-        guard let date = input.date(from: raw) else { return raw }
-        let output = DateFormatter()
-        output.locale = Locale(identifier: "en_US_POSIX")
-        output.dateFormat = "HH:mm"
-        return output.string(from: date)
+        ScheduleDateRules.canonical24HourTime(raw) ?? raw
     }
 
     private static func formatter(format: String) -> DateFormatter {

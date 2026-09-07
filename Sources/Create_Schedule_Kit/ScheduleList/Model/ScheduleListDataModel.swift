@@ -222,13 +222,6 @@ private extension KeyedEncodingContainer {
 
 extension ScheduleListDataModel.Schedule {
 
-    private static let apiTimeFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "HH:mm:ss"
-        f.locale = Locale(identifier: "en_US_POSIX")
-        return f
-    }()
-
     /// Title shown on the card (module name, falling back to course name / code).
     var title: String {
         moduleName ?? courseName ?? scheduleCode ?? "Schedule"
@@ -309,14 +302,11 @@ extension ScheduleListDataModel.Schedule {
     /// Big title on the detail header (course name, falling back to module / code).
     var detailTitle: String { courseName ?? moduleName ?? scheduleCode ?? "Schedule" }
 
-    /// Day-granular not-yet-completed check off the end date: a schedule ending today has not
-    /// completed; it moves to Completed tomorrow. An unparseable end date reads as not completed.
+    /// Whether the schedule has not yet reached its start moment.
     var isUpcoming: Bool { isUpcoming(now: Date()) }
 
     func isUpcoming(now: Date) -> Bool {
-        guard let end = endDateValue else { return true }
-        let calendar = Calendar.current
-        return calendar.startOfDay(for: end) >= calendar.startOfDay(for: now)
+        !hasStarted(now: now) && !hasEnded(now: now)
     }
 
     /// Start moment of the schedule. `startDate` usually carries a midnight timestamp with the
@@ -325,14 +315,20 @@ extension ScheduleListDataModel.Schedule {
     /// day-granular). An unparseable `startDate` reads as not started.
     var startDateTimeValue: Date? {
         guard let day = ScheduleDraft.parseAPIDate(startDate) else { return nil }
-        guard let raw = startTime, let time = Self.parseTimeOfDay(raw) else { return day }
-        let parts = Calendar.current.dateComponents([.hour, .minute, .second], from: time)
-        return Calendar.current.date(
-            bySettingHour: parts.hour ?? 0,
-            minute: parts.minute ?? 0,
-            second: parts.second ?? 0,
-            of: day
-        ) ?? day
+        guard let raw = startTime else { return Calendar.current.startOfDay(for: day) }
+        return ScheduleDateRules.moment(on: day, time: raw) ?? Calendar.current.startOfDay(for: day)
+    }
+
+    /// End moment used by status filtering. A valid 24-hour `endTime` is combined with
+    /// `endDate`; when the API omits or corrupts the time, the historical day-granular
+    /// behavior is preserved by treating the schedule as ending at the next midnight.
+    var endDateTimeValue: Date? {
+        guard let day = endDateValue else { return nil }
+        if let raw = endTime, let moment = ScheduleDateRules.moment(on: day, time: raw) {
+            return moment
+        }
+        let calendar = Calendar.current
+        return calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: day))
     }
 
     func hasStarted(now: Date = Date()) -> Bool {
@@ -340,15 +336,19 @@ extension ScheduleListDataModel.Schedule {
         return now >= start
     }
 
+    func hasEnded(now: Date = Date()) -> Bool {
+        guard let end = endDateTimeValue else { return false }
+        return now >= end
+    }
+
     /// The single source of truth for the Upcoming/Ongoing/Completed split — drives both the
     /// list tabs (`ScheduleListViewModel.displayItems`) and the detail header pill, so the two
-    /// cannot drift apart. Completed once the end day has passed (day-granular: a schedule
-    /// ending today is not yet completed), Ongoing once the start date + time has passed,
-    /// Upcoming before that.
+    /// cannot drift apart. Completed once end date + 24-hour end time is reached, Ongoing
+    /// once start date + start time is reached, and Upcoming before that.
     var listTab: ScheduleTab { listTab(now: Date()) }
 
     func listTab(now: Date) -> ScheduleTab {
-        guard isUpcoming(now: now) else { return .completed }
+        if hasEnded(now: now) { return .completed }
         return hasStarted(now: now) ? .ongoing : .upcoming
     }
 
@@ -400,20 +400,7 @@ extension ScheduleListDataModel.Schedule {
     }
 
     private static func shortTime(_ raw: String?) -> String {
-        guard let raw, let date = apiTimeFormatter.date(from: raw) else { return raw ?? "" }
-        return date.formatted(using: "HH:mm")
+        guard let raw else { return "" }
+        return ScheduleDateRules.canonical24HourTime(raw) ?? raw
     }
-
-    /// The API sends `"09:00:00"`, but some endpoints drop the seconds.
-    private static func parseTimeOfDay(_ raw: String) -> Date? {
-        if let date = apiTimeFormatter.date(from: raw) { return date }
-        return shortTimeFormatter.date(from: raw)
-    }
-
-    private static let shortTimeFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "HH:mm"
-        f.locale = Locale(identifier: "en_US_POSIX")
-        return f
-    }()
 }

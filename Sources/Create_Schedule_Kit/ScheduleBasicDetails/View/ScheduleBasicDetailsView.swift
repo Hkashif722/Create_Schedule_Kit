@@ -77,6 +77,7 @@ private extension ScheduleBasicDetailsView {
                 dateRow
                 timeRow
                 registrationField
+                if viewModel.showTeamsLinkField { teamsLinkField }
             }
         }
     }
@@ -85,19 +86,29 @@ private extension ScheduleBasicDetailsView {
 // MARK: - Fields
 private extension ScheduleBasicDetailsView {
 
+    @ViewBuilder
     var scheduleCodeField: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            CSFieldLabel(title: "Schedule code")
-            HStack {
-                Text(viewModel.scheduleCode.isEmpty ? "—" : viewModel.scheduleCode)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.secondary)
-                Spacer()
-                Image(systemName: "lock.fill").foregroundColor(.secondary).font(.caption)
+        if viewModel.isScheduleCodeEditable {
+            CSTextField(
+                title: "Schedule code",
+                isRequired: true,
+                placeholder: "Enter schedule code",
+                text: $viewModel.scheduleCode
+            )
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                CSFieldLabel(title: "Schedule code")
+                HStack {
+                    Text(viewModel.scheduleCode.isEmpty ? "—" : viewModel.scheduleCode)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Image(systemName: "lock.fill").foregroundColor(.secondary).font(.caption)
+                }
+                .padding(12)
+                .background(Color(.systemGray6))
+                .cornerRadius(8)
             }
-            .padding(12)
-            .background(Color(.systemGray6))
-            .cornerRadius(8)
         }
     }
 
@@ -211,6 +222,18 @@ private extension ScheduleBasicDetailsView {
         }
     }
 
+    var teamsLinkField: some View {
+        TeamsStaticLinkField(
+            title: "Teams Link",
+            text: viewModel.teamsLink,
+            errorMessage: viewModel.teamsLinkError,
+            onTextChanged: { viewModel.didEditTeamsLink($0) }
+        )
+        // The field keeps its own state and only reads `text` on first appear, so it is
+        // rebuilt whenever the model clears the link.
+        .id("teams-link-\(viewModel.linkFieldToken)")
+    }
+
     /// The dropdown is withheld until the timezone list has loaded.
     /// `DropDownMenuListViewPkg` force-opens its menu whenever a *searchable* option set
     /// goes from empty to non-empty — that hook is what makes course/trainer search
@@ -232,7 +255,7 @@ private extension ScheduleBasicDetailsView {
                     placeholder: "Select time zone",
                     selectedOption: viewModel.selectedTimezone,
                     isSearchable: true,
-                    onSelection: { viewModel.selectedTimezone = $0 }
+                    onSelection: { viewModel.didSelectTimezone($0) }
                 )
             }
         }
@@ -261,19 +284,22 @@ private extension ScheduleBasicDetailsView {
                 router: router,
                 title: "Start date",
                 placeHolder: "Select start date",
+                disabledWeekdays: ScheduleDateRules.nonWorkingWeekdays,
                 initialDateString: viewModel.startDateString,
                 onDateSelected: { viewModel.didSelectStartDate($0) }
             )
+            .id("start-\(viewModel.dateFieldToken)")
             DatePickerTextFieldPkg(
                 router: router,
                 title: "End date",
                 placeHolder: "Select end date",
                 minimumDate: viewModel.endDateMinimum,
+                disabledWeekdays: ScheduleDateRules.nonWorkingWeekdays,
                 isEnabled: viewModel.endAndRegEnabled,
                 initialDateString: viewModel.endDateString,
                 onDateSelected: { viewModel.didSelectEndDate($0) }
             )
-            .id("end-\(viewModel.startDateString ?? "")")
+            .id("end-\(viewModel.startDateString ?? "")-\(viewModel.dateFieldToken)")
         }
     }
 
@@ -282,12 +308,14 @@ private extension ScheduleBasicDetailsView {
             TimePickerTextField(
                 router: router,
                 title: "Start time",
+                timeFormat: ScheduleDateRules.timeFormat,
                 initialTimeString: viewModel.startTime,
                 onTimeSelected: { viewModel.didSelectStartTime($0) }
             )
             TimePickerTextField(
                 router: router,
                 title: "End time",
+                timeFormat: ScheduleDateRules.timeFormat,
                 initialTimeString: viewModel.endTime,
                 onTimeSelected: { viewModel.didSelectEndTime($0) }
             )
@@ -306,11 +334,12 @@ private extension ScheduleBasicDetailsView {
             placeHolder: "Select registration end date",
             minimumDate: viewModel.registrationMinimum,
             maximumDate: viewModel.registrationMaximum,
+            disabledWeekdays: ScheduleDateRules.nonWorkingWeekdays,
             isEnabled: viewModel.endAndRegEnabled,
             initialDateString: viewModel.registrationEndDateString,
             onDateSelected: { viewModel.didSelectRegistrationEndDate($0) }
         )
-        .id("reg-\(viewModel.startDateString ?? "")")
+        .id("reg-\(viewModel.startDateString ?? "")-\(viewModel.dateFieldToken)")
     }
 
     var holidaysCard: some View {

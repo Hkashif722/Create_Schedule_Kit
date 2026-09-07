@@ -123,14 +123,26 @@ extension CreateScheduleWizardViewModel {
         loadingState = .loading(message: "Creating schedule...")
         do {
             let payload = CreateScheduleWizardDataModel.Payload(draft: draft)
-            let response = try await ApiService.shared.requestPostHeader(
-                type: CreateScheduleWizardDataModel.CreateScheduleResponse.self,
-                model: CreateScheduleWizardDataModel.PostWithMeetingRequest(),
-                payload: payload
-            )
+            // `PostWithMeeting` asks the server to mint the meeting. When the body already
+            // carries one — a typed Teams link or a generated provider meeting — the plain
+            // route is the one that accepts it, matching the web client.
+            let response: CreateScheduleWizardDataModel.CreateScheduleResponse
+            if payload.carriesClientMeetingDetails {
+                response = try await ApiService.shared.requestPostHeader(
+                    type: CreateScheduleWizardDataModel.CreateScheduleResponse.self,
+                    model: CreateScheduleWizardDataModel.CreateScheduleRequest(),
+                    payload: payload
+                )
+            } else {
+                response = try await ApiService.shared.requestPostHeader(
+                    type: CreateScheduleWizardDataModel.CreateScheduleResponse.self,
+                    model: CreateScheduleWizardDataModel.PostWithMeetingRequest(),
+                    payload: payload
+                )
+            }
             guard (response.statusCode ?? 0) == 200 else {
                 loadingState = .none
-                toast = Toast(style: .error, message: response.message ?? "Could not create schedule.")
+                toast = Toast(style: .error, message: response.serverMessage ?? "Could not create schedule.")
                 return
             }
             loadingState = .none
@@ -140,6 +152,11 @@ extension CreateScheduleWizardViewModel {
             } else {
                 promptNomination()
             }
+        } catch let error as APIError {
+            // `handleAPIError` only understands a converted error; handed the raw one it
+            // falls back to a generic message and the server's reason is lost. Same
+            // conversion the cancel flow does.
+            handleAPIError(error.toUIError(), resetLoadingState: true, showToast: true)
         } catch {
             handleAPIError(error, resetLoadingState: true, showToast: true)
         }
@@ -214,7 +231,7 @@ extension CreateScheduleWizardViewModel {
             )
             guard (response.statusCode ?? 0) == 200 else {
                 loadingState = .none
-                toast = Toast(style: .error, message: response.message ?? "Could not update schedule.")
+                toast = Toast(style: .error, message: response.serverMessage ?? "Could not update schedule.")
                 return
             }
             loadingState = .none
@@ -224,6 +241,8 @@ extension CreateScheduleWizardViewModel {
             eventPublisher.publish(event)
             onFinish?(event)
             router.dismissScreen()
+        } catch let error as APIError {
+            handleAPIError(error.toUIError(), resetLoadingState: true, showToast: true)
         } catch {
             handleAPIError(error, resetLoadingState: true, showToast: true)
         }

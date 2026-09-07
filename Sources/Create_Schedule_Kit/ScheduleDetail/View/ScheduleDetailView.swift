@@ -27,7 +27,12 @@ struct ScheduleDetailView: View {
             header
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    ScheduleDetailHeaderCard(schedule: viewModel.schedule, deliveryText: viewModel.deliveryText)
+                    ScheduleDetailHeaderCard(
+                        schedule: viewModel.schedule,
+                        deliveryText: viewModel.deliveryText,
+                        onWaitingList: { viewModel.didTapWaitingList() },
+                        onAvailability: { viewModel.didTapAvailability() }
+                    )
 
                     section("SCHEDULE INFO") {
                         ScheduleInfoCardView(rows: infoRows)

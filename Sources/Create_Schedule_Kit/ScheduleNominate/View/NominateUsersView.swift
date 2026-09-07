@@ -114,7 +114,9 @@ private extension NominateUsersView {
         DropDownMenuListViewPkg(
             viewModel.typeaheadResults,
             placeholder: "Search name, ID, email…",
+            selectedOption: viewModel.selectedSuggestion,
             isSearchable: true,
+            focusRequest: viewModel.searchResetToken,
             onSearchTextChange: { viewModel.onSearchChanged($0) },
             onSelection: { viewModel.selectSuggestion($0) }
         )
