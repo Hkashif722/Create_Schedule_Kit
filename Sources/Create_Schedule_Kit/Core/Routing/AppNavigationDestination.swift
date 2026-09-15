@@ -25,6 +25,9 @@ enum AppNavigationDestination {
     case scheduleDetail(NavigationViewModel.ScheduleDetailNavModel)
     case attendance(NavigationViewModel.AttendanceNavModel)
     case scheduleUsers(NavigationViewModel.ScheduleUsersNavModel)
+    case attendanceUsers(NavigationViewModel.AttendanceUsersNavModel)
+    case attendanceQRScanner(NavigationViewModel.AttendanceQRScannerNavModel)
+    case scheduleQRCode(NavigationViewModel.ScheduleQRCodeNavModel)
     case cancelSchedule(NavigationViewModel.CancelScheduleNavModel)
 }
 
@@ -81,6 +84,31 @@ extension AppNavigationDestination: NavigationProtocol {
         case .scheduleUsers(let navModel):
             pushScreen(router) { router in
                 ScheduleUsersView(router: router, navModel: navModel)
+            }
+
+        // One case, two screens: they share a view model, so the mode picks the view.
+        // `Group` supplies the view builder — `pushScreen`'s closure is a plain generic one.
+        case .attendanceUsers(let navModel):
+            pushScreen(router) { router in
+                Group {
+                    if navModel.mode == .bulkMark {
+                        BulkMarkAttendanceView(router: router, navModel: navModel)
+                    } else {
+                        AttendeesView(router: router, navModel: navModel)
+                    }
+                }
+            }
+
+        // The camera preview wants the whole screen, and the scanner draws its own close
+        // control.
+        case .attendanceQRScanner(let navModel):
+            pushFullScreenCover(router) { router in
+                AttendanceQRScannerView(router: router, navModel: navModel)
+            }
+
+        case .scheduleQRCode(let navModel):
+            showModelView(router) {
+                ScheduleQRCodeView(router: router, navModel: navModel)
             }
 
         // Large detent rather than resizable: the sheet hosts a focused text editor, and a

@@ -151,6 +151,109 @@ import SwiftUIUtilities
         #expect(trainers[0]["academyTrainerID"] != nil)
     }
 
+    /// Each trainer is saved with the type it was added under. The wizard's segmented control
+    /// can be switched between trainers, so sending `draft.trainerType` for every row marked a
+    /// mixed list as all-External (whichever segment was last selected) — which is what the
+    /// Schedule Details trainer badges then showed.
+    @Test func trainersKeepTheirOwnTypeInsteadOfTheLastSelectedSegment() throws {
+        let draft = offlineDraft()
+        draft.trainerType = .external   // last segment the user touched
+        draft.trainers = [
+            .init(id: "1", name: "Lms Admin", emailId: nil, userId: nil, profilePicture: nil,
+                  mobileNumber: nil, userType: "Internal", nameUserId: "LMS Admin-lmsadmin (Internal)"),
+            .init(id: "2", name: "Ram", emailId: nil, userId: nil, profilePicture: nil,
+                  mobileNumber: nil, userType: "External", nameUserId: "Ram-8668946281 (External)"),
+            .init(id: "3", name: "Asha", emailId: nil, userId: nil, profilePicture: nil,
+                  mobileNumber: nil, userType: "consultant", nameUserId: "Asha-asha"),
+            // No stamped type (older draft state) — the wizard's own type stands in.
+            .init(id: "4", name: "Kiran", emailId: nil, userId: nil, profilePicture: nil,
+                  mobileNumber: nil, userType: nil, nameUserId: "Kiran-kiran")
+        ]
+
+        let object = try encodeToObject(.init(draft: draft))
+        let trainers = try #require(object["TrainerList"] as? [[String: Any]])
+
+        #expect(trainers.map { $0["trainerType"] as? String } == ["Internal", "External", "Consultant", "External"])
+        // The schedule's own type is still the wizard's selection.
+        #expect(object["trainerType"] as? String == "External")
+    }
+
+    /// The web client appends each trainer's own type to `nameUserId`
+    /// ("LMS Admin - lmsadmin (Internal)") — `searchTrainer` returns the composed name
+    /// without it. The server echoes the string back on `GetScheduleDetailsByID`, where
+    /// Schedule Details reads the badge from it, so the suffix must match the row's
+    /// `trainerType` for every trainer on a mixed schedule.
+    @Test func nameUserIdCarriesEachTrainersOwnType() throws {
+        let draft = offlineDraft()
+        draft.trainerType = .external
+        draft.trainers = [
+            .init(id: "1", name: "LMS Admin", emailId: nil, userId: nil, profilePicture: nil,
+                  mobileNumber: nil, userType: "Internal", nameUserId: "LMS Admin - lmsadmin"),
+            .init(id: "2", name: "Ram", emailId: nil, userId: nil, profilePicture: nil,
+                  mobileNumber: nil, userType: "External", nameUserId: "Ram - 8668946281"),
+            // No composed name from the server — the plain name carries the suffix instead.
+            .init(id: "3", name: "Asha", emailId: nil, userId: nil, profilePicture: nil,
+                  mobileNumber: nil, userType: "consultant", nameUserId: nil),
+            // No stamped type — name and `trainerType` both fall back to the wizard's type.
+            .init(id: "4", name: "Kiran", emailId: nil, userId: nil, profilePicture: nil,
+                  mobileNumber: nil, userType: nil, nameUserId: "Kiran - kiran")
+        ]
+
+        let object = try encodeToObject(.init(draft: draft))
+        let trainers = try #require(object["TrainerList"] as? [[String: Any]])
+
+        #expect(trainers.map { $0["nameUserId"] as? String } == [
+            "LMS Admin - lmsadmin (Internal)",
+            "Ram - 8668946281 (External)",
+            "Asha (Consultant)",
+            "Kiran - kiran (External)"
+        ])
+        // The suffix and the row's own type always agree.
+        #expect(trainers.map { $0["trainerType"] as? String } == ["Internal", "External", "Consultant", "External"])
+    }
+
+    /// A type the server already appended is not doubled up.
+    @Test func anAlreadySuffixedNameIsNotSuffixedTwice() throws {
+        let draft = offlineDraft()
+        draft.trainers = [
+            .init(id: "1", name: "kashif", emailId: nil, userId: nil, profilePicture: nil,
+                  mobileNumber: nil, userType: "Internal", nameUserId: "kashif - kashif (Internal)")
+        ]
+        let trainers = try #require(try encodeToObject(.init(draft: draft))["TrainerList"] as? [[String: Any]])
+        #expect(trainers.first?["nameUserId"] as? String == "kashif - kashif (Internal)")
+    }
+
+    /// `searchTrainer` returns the address encrypted; the web sends it in the clear and the
+    /// server stores what it is given, so the payload decrypts it first.
+    @Test func trainerEmailIsSentDecrypted() throws {
+        let draft = offlineDraft()
+        let encrypted = EncryptDecryptUtility.shared.newEncryptValueString(valueStr: "lmsadmin11@enthral.com")
+        draft.trainers = [
+            .init(id: "1", name: "LMS Admin", emailId: encrypted, userId: nil, profilePicture: nil,
+                  mobileNumber: nil, userType: "Internal", nameUserId: "LMS Admin - lmsadmin")
+        ]
+
+        let trainers = try #require(try encodeToObject(.init(draft: draft))["TrainerList"] as? [[String: Any]])
+        #expect(encrypted != "lmsadmin11@enthral.com")
+        #expect(trainers.first?["emailID"] as? String == "lmsadmin11@enthral.com")
+        #expect(trainers.first?["trainerEmail"] as? String == "lmsadmin11@enthral.com")
+    }
+
+    /// An address that does not decrypt is sent as-is rather than blanked, and a trainer
+    /// with no address on file still sends the empty string the body has always carried.
+    @Test func anUndecryptableOrMissingEmailIsSafe() throws {
+        let draft = offlineDraft()
+        draft.trainers = [
+            .init(id: "1", name: "Plain", emailId: "plain@enthral.com", userId: nil, profilePicture: nil,
+                  mobileNumber: nil, userType: "Internal", nameUserId: nil),
+            .init(id: "2", name: "None", emailId: nil, userId: nil, profilePicture: nil,
+                  mobileNumber: nil, userType: "Internal", nameUserId: nil)
+        ]
+
+        let trainers = try #require(try encodeToObject(.init(draft: draft))["TrainerList"] as? [[String: Any]])
+        #expect(trainers.map { $0["emailID"] as? String } == ["plain@enthral.com", ""])
+    }
+
     // MARK: - Teams static link
 
     private func onlineDraft(_ type: WebinarType) -> ScheduleDraft {
@@ -159,6 +262,18 @@ import SwiftUIUtilities
         draft.webinarType = type
         draft.credential = [.init(id: 1043, teamsEmail: "ENC_ACCOUNT==", username: nil, password: nil, isDefault: 0)]
         return draft
+    }
+
+    @Test func aTeamsScheduleSendsTheWebsWebinarType() throws {
+        let object = try encodeToObject(.init(draft: onlineDraft(.teams)))
+        #expect(object["webinarType"] as? String == "TEAMS")
+    }
+
+    @Test func aGoogleMeetScheduleSendsTheWebsWebinarType() throws {
+        let object = try encodeToObject(.init(draft: onlineDraft(.googleMeet)))
+        #expect(object["webinarType"] as? String == "googlemeet")
+        // The account still identifies the meeting host, as the captured body shows.
+        #expect(object["webinarAccount"] as? String == "ENC_ACCOUNT==")
     }
 
     @Test func teamsStaticLinkTravelsInTeamsScheduleDetails() throws {
@@ -179,6 +294,61 @@ import SwiftUIUtilities
         #expect(details[0]["startTime"] is NSNull)
         #expect(details[0]["endTime"] is NSNull)
         #expect(details[0]["iCalUId"] is NSNull)
+    }
+
+    /// The web sends no `webinarAccount` at all once the link is hand-entered — there is
+    /// no stored account behind that meeting — so the key is omitted, not nulled.
+    @Test func noWebinarAccountTravelsWithAHandEnteredLink() throws {
+        let draft = onlineDraft(.teams)
+        draft.teamsLink = "https://team.link"
+
+        let object = try encodeToObject(.init(draft: draft))
+
+        #expect(object["webinarAccount"] == nil)
+        #expect(object.keys.contains("webinarAccount") == false)
+        // Still an online Teams schedule, and the link still travels.
+        #expect(object["isWebinar"] as? Bool == true)
+        #expect(object["webinarType"] as? String == "TEAMS")
+        #expect((object["teamsScheduleDetails"] as? [Any])?.count == 1)
+    }
+
+    /// Without a hand-entered link the account is the only thing identifying the meeting
+    /// host, so it must keep going out. `ENC_ACCOUNT==` is not decryptable, which is the
+    /// passthrough case — an account is never dropped from the body.
+    @Test func theWebinarAccountStillTravelsForAGeneratedMeeting() throws {
+        let teams = try encodeToObject(.init(draft: onlineDraft(.teams)))
+        let zoom = try encodeToObject(.init(draft: onlineDraft(.zoom)))
+
+        #expect(teams["webinarAccount"] as? String == "ENC_ACCOUNT==")
+        #expect(zoom["webinarAccount"] as? String == "ENC_ACCOUNT==")
+    }
+
+    /// The credential endpoints return the host address AES-encrypted; the web posts it in
+    /// the clear (`"webinarAccount": "sysadmin@enthralltech.com"`), so it is decrypted on
+    /// the way into the body.
+    @Test func theWebinarAccountIsSentDecrypted() throws {
+        let encrypted = EncryptDecryptUtility.shared.newEncryptValueString(
+            valueStr: "sysadmin@enthralltech.com"
+        )
+        #expect(encrypted != "sysadmin@enthralltech.com")   // guards the fixture itself
+
+        let draft = onlineDraft(.zoom)
+        draft.credential = [.init(id: 1043, teamsEmail: encrypted, username: nil, password: nil, isDefault: 0)]
+
+        let object = try encodeToObject(.init(draft: draft))
+
+        #expect(object["webinarAccount"] as? String == "sysadmin@enthralltech.com")
+    }
+
+    /// An address that arrives already in the clear is sent as-is, not blanked.
+    @Test func anAlreadyPlainWebinarAccountSurvives() throws {
+        let draft = onlineDraft(.zoom)
+        draft.credential = [.init(id: 1043, teamsEmail: "sysadmin@enthralltech.com",
+                                  username: nil, password: nil, isDefault: 0)]
+
+        let object = try encodeToObject(.init(draft: draft))
+
+        #expect(object["webinarAccount"] as? String == "sysadmin@enthralltech.com")
     }
 
     @Test func teamsStaticLinkIsNormalizedBeforeItIsSent() throws {

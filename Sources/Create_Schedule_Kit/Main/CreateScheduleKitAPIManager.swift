@@ -39,6 +39,10 @@ public actor CreateScheduleKitAPIManager {
         config?.userRole ?? ""
     }
 
+    nonisolated internal var getUserMobileNumber: String {
+        config?.userMobileNumber ?? ""
+    }
+
     /// Current bearer token (same provider handed to `ApiService`). Used by the plain-text
     /// client for endpoints that return non-JSON bodies.
     nonisolated internal var authToken: String? {

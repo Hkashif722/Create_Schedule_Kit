@@ -48,7 +48,7 @@ import SwiftUIUtilities
     ) -> AttendanceDataModel.InsertItem {
         .init(
             id: 0,
-            isPresent: statusCode == "ATTD",
+            isPresent: AttendanceDataModel.isPresent(forStatusCode: statusCode),
             userId: 11985,
             moduleId: 46289,
             scheduleId: 4092,
@@ -58,18 +58,6 @@ import SwiftUIUtilities
             attendanceDate: attendanceDate,
             withdrewReason: "",
             withdrewRemark: ""
-        )
-    }
-
-    @MainActor
-    private func attendanceViewModel() -> AttendanceViewModel {
-        AttendanceViewModel(
-            router: RouterEnvironmentKey.defaultValue,
-            navModel: .init(
-                scheduleID: 4092, courseID: 59207, moduleID: 46289,
-                courseName: "Course", moduleName: "Module",
-                scheduleCode: "SC8450", dateRangeText: "Aug 06, 2026"
-            )
         )
     }
 
@@ -117,8 +105,15 @@ import SwiftUIUtilities
         #expect(raw.contains("\"withdrewRemark\":\"\""))
     }
 
-    /// `isPresent` is derived from the status code rather than sent independently.
-    @Test(arguments: [("ATTD", true), ("ABS", false), ("WD", false), ("LATE", false)])
+    /// `isPresent` is derived from the status code rather than sent independently, using the
+    /// same table as the Attendance tab's Save — Withdrew included.
+    @Test(arguments: [
+        ("ATTD", true),              // Attended
+        ("NOSHOWNCOSTAPPL", true),   // Absent
+        ("WDLNCOSTAPPL", true),      // Withdrew
+        ("WAIVER", false),           // Waived
+        ("LATE", false)              // Unknown code
+    ])
     func isPresentFollowsTheAttendanceStatus(code: String, expected: Bool) throws {
         let object = try encodeToObject(insertItem(statusCode: code))
         #expect(object["IsPresent"] as? Bool == expected)
@@ -201,48 +196,10 @@ import SwiftUIUtilities
         #expect(CreateScheduleWizardDataModel.Payload.isoDate(date) == "2026-06-24T00:00:00.000Z")
     }
 
-    // MARK: - Tab gate
-
-    @MainActor
-    @Test func nominateTabIsBlockedUntilTheDateIsPicked() {
-        let viewModel = attendanceViewModel()
-        viewModel.selectedStatus = statusOption("ATTD")
-
-        viewModel.selectTab(.nominate)
-
-        #expect(viewModel.activeTab == .attendance)
-        #expect(viewModel.toast?.message == "Please select the attendance date.")
-    }
-
-    @MainActor
-    @Test func nominateTabIsBlockedUntilTheStatusIsPicked() throws {
-        let viewModel = attendanceViewModel()
-        viewModel.selectedDate = try day(2026, 8, 6)
-
-        viewModel.selectTab(.nominate)
-
-        #expect(viewModel.activeTab == .attendance)
-        #expect(viewModel.toast?.message == "Please select the attendance status.")
-    }
-
-    @MainActor
-    @Test func nominateTabOpensOnceDateAndStatusAreSet() throws {
-        let viewModel = attendanceViewModel()
-        viewModel.selectedDate = try day(2026, 8, 6)
-        viewModel.selectedStatus = statusOption("ATTD")
-
-        #expect(viewModel.nominateBlockReason == nil)
-        viewModel.selectTab(.nominate)
-        #expect(viewModel.activeTab == .nominate)
-    }
-
-    /// Switching back is never gated.
-    @MainActor
-    @Test func attendanceTabIsAlwaysReachable() {
-        let viewModel = attendanceViewModel()
-        viewModel.selectTab(.attendance)
-        #expect(viewModel.activeTab == .attendance)
-    }
+    // The Attendance / Nomination tab gate moved to `BulkMarkAttendanceGatingTests` when
+    // the flow split — the tabs live on Bulk Mark Attendance now. What stays here is the
+    // contract this file is really about: the insert payload, its route, and the submit
+    // guards inside `NominateUsersViewModel`.
 
     // MARK: - Submit gate
 

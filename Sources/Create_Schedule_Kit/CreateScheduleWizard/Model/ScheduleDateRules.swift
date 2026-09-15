@@ -65,6 +65,24 @@ enum ScheduleDateRules {
     /// Canonical format used by the wizard, payloads, and schedule-status bucketing.
     static let timeFormat = "HH:mm"
 
+    /// The 12-hour format the start/end time fields show. Presentation only — a picked
+    /// value is canonicalised back to `timeFormat` before it reaches the draft or a payload.
+    static let displayTimeFormat = "h:mm a"
+
+    /// A stored time rendered for the time fields, e.g. `14:30` → `2:30 PM`. `nil` when the
+    /// value cannot be parsed, so the field falls back to its placeholder rather than
+    /// showing a string the picker cannot read back.
+    static func displayTime(_ raw: String?, calendar: Calendar = .current) -> String? {
+        guard let raw, let time = moment(on: Date(), time: raw, calendar: calendar) else { return nil }
+
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = displayTimeFormat
+        return formatter.string(from: time)
+    }
+
     /// Seconds since midnight for an API or legacy picker time.
     ///
     /// New values are always stored as 24-hour `HH:mm`. The parser also accepts API

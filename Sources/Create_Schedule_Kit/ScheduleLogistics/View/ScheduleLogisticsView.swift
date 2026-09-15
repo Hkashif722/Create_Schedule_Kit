@@ -27,8 +27,6 @@ struct ScheduleLogisticsView: View {
         )
     }
 
-    private let chipColumns = [GridItem(.adaptive(minimum: 96), spacing: 8, alignment: .leading)]
-
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
@@ -58,7 +56,8 @@ private extension ScheduleLogisticsView {
             subtitle: "Where it takes place"
         ) {
             VStack(alignment: .leading, spacing: 18) {
-                academyField.zIndex(2)
+                placeTypeField.zIndex(3)
+                venueOwnerField.zIndex(2)
                 trainingPlaceField.zIndex(1)
             }
         }
@@ -114,6 +113,30 @@ private extension ScheduleLogisticsView {
 // MARK: - Fields
 private extension ScheduleLogisticsView {
 
+    var placeTypeField: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            CSFieldLabel(title: "Training place type")
+            CSSegmentedControl(
+                options: viewModel.placeTypeOptions,
+                title: { $0.displayTitle },
+                selection: Binding(
+                    get: { viewModel.placeType },
+                    set: { viewModel.didSelectPlaceType($0) }
+                )
+            )
+        }
+    }
+
+    /// Internal venues belong to an academy from the directory; external ones to an agency
+    /// with no directory to search, so that name is typed in.
+    @ViewBuilder
+    var venueOwnerField: some View {
+        switch viewModel.placeType {
+        case .internal: academyField
+        case .external: agencyField
+        }
+    }
+
     var academyField: some View {
         VStack(alignment: .leading, spacing: 6) {
             CSFieldLabel(title: "Academy name", isRequired: true)
@@ -126,6 +149,15 @@ private extension ScheduleLogisticsView {
                 onSelection: { viewModel.didSelectAcademy($0) }
             )
         }
+    }
+
+    var agencyField: some View {
+        CSTextField(
+            title: "Agency name",
+            isRequired: true,
+            placeholder: "Enter agency name",
+            text: $viewModel.agencyName
+        )
     }
 
     var trainingPlaceField: some View {
@@ -175,16 +207,19 @@ private extension ScheduleLogisticsView {
                     onSearchTextChange: { viewModel.onTrainerSearch($0) },
                     onSelection: { viewModel.didSelectTrainer($0) }
                 )
+                // The control keeps the picked name in its own state, so a trainer chosen
+                // under the previous Trainer type stayed on screen after the switch.
+                // Keying it on the type rebuilds the field empty. Same remount trick as
+                // the date and time fields on step 1.
+                .id("trainer-\(viewModel.trainerType.rawValue)")
             }
         }
     }
 
     var selectedTrainersGrid: some View {
-        LazyVGrid(columns: chipColumns, alignment: .leading, spacing: 8) {
-            ForEach(viewModel.selectedTrainers) { trainer in
-                CSRemovableChip(title: trainer.displayNameWithType) {
-                    viewModel.removeTrainer(trainer)
-                }
+        CSChipFlow(viewModel.selectedTrainers) { trainer in
+            CSRemovableChip(title: trainer.displayNameWithType) {
+                viewModel.removeTrainer(trainer)
             }
         }
     }
@@ -192,42 +227,27 @@ private extension ScheduleLogisticsView {
     var tagsField: some View {
         VStack(alignment: .leading, spacing: 8) {
             CSFieldLabel(title: "Select tags")
-            LazyVGrid(columns: chipColumns, alignment: .leading, spacing: 8) {
-                ForEach(viewModel.allTags) { tag in
-                    CSSelectableChip(
-                        title: tag.description,
-                        isSelected: viewModel.isTagSelected(tag),
-                        onTap: { viewModel.toggleTag(tag) }
-                    )
-                }
+            CSChipFlow(viewModel.allTags) { tag in
+                CSSelectableChip(
+                    title: tag.description,
+                    isSelected: viewModel.isTagSelected(tag),
+                    onTap: { viewModel.toggleTag(tag) }
+                )
             }
         }
     }
 
-    @ViewBuilder
+    /// Read-only in both modes: the coordinator is the training place's contact person,
+    /// so it is auto-filled from the place — never typed, and never searched in edit mode.
     var coordinatorField: some View {
-        if viewModel.isEditMode {
-            VStack(alignment: .leading, spacing: 6) {
-                CSFieldLabel(title: "Coordinator name", isRequired: true)
-                DropDownMenuListViewPkg(
-                    viewModel.coordinatorResults,
-                    placeholder: "Type to search coordinators…",
-                    selectedOption: viewModel.selectedCoordinator,
-                    isSearchable: true,
-                    onSearchTextChange: { viewModel.onCoordinatorSearch($0) },
-                    onSelection: { viewModel.didSelectCoordinator($0) }
-                )
-            }
-        } else {
-            CSTextField(
-                title: "Coordinator name",
-                isRequired: true,
-                placeholder: "Auto-filled from training place",
-                text: $viewModel.coordinatorName,
-                isReadOnly: true,
-                leadingSystemImage: "person"
-            )
-        }
+        CSTextField(
+            title: "Coordinator name",
+            isRequired: true,
+            placeholder: "Auto-filled from training place",
+            text: $viewModel.coordinatorName,
+            isReadOnly: true,
+            leadingSystemImage: "person"
+        )
     }
 
     var contactField: some View {

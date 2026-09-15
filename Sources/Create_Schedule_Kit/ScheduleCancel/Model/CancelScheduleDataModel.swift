@@ -40,8 +40,9 @@ enum CancelScheduleDataModel {
 
     // MARK: - Payload
 
-    /// Body for `CancellationSchedule`. `scheduleID` is the AES-encrypted numeric id — encrypted
-    /// by the view model before it gets here, and passed through untouched.
+    /// Body for `CancellationSchedule`. `scheduleID` is the plain numeric id as a string — this
+    /// route does not decrypt its input, so it must not be encrypted (see
+    /// `CancelScheduleViewModel.cancelPayload`).
     struct CancelPayload: Encodable {
         let scheduleID: String
         let reason: String

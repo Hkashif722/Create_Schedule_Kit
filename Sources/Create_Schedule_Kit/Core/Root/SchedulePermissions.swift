@@ -62,4 +62,5 @@ extension SchedulePermissions {
 
     /// Always allowed.
     var canViewSchedule: Bool { true }
+
 }

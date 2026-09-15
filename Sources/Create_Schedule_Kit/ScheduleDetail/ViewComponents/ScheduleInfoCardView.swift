@@ -48,7 +48,6 @@ struct ScheduleInfoCardView: View {
         .init(label: "Code", value: "SC6572"),
         .init(label: "Module", value: "test parichay"),
         .init(label: "Reg. end", value: "24 Jun 2026"),
-        .init(label: "Coordinator", value: "Sachin Shimpi"),
         .init(label: "Seat capacity", value: "20"),
         .init(label: "Purpose", value: "Planned Training")
     ])

@@ -49,6 +49,8 @@ extension ScheduleDraft {
                     || $0.displayTitle.caseInsensitiveCompare(raw) == .orderedSame
             }
         }
+        // The hand-entered Teams link, so edit mode opens on the schedule's current one.
+        teamsLink = details.teamsScheduleDetails?.firstString(forKey: "joinUrl")
         if let account = details.webinarAccount, !account.isEmpty {
             credential = [
                 ScheduleBasicDetailsDataModel.Credential(
@@ -65,8 +67,8 @@ extension ScheduleDraft {
         startDate = Self.parseAPIDate(details.startDate)
         endDate = Self.parseAPIDate(details.endDate)
         registrationEndDate = Self.parseAPIDate(details.registrationEndDate)
-        startTime = details.startTime.map(Self.displayTime)
-        endTime = details.endTime.map(Self.displayTime)
+        startTime = details.startTime.map(Self.canonicalTime)
+        endTime = details.endTime.map(Self.canonicalTime)
 
         // Holidays — map the fetched rows, then normalize through the generator so ids
         // and row order always line up with the schedule range.
@@ -87,7 +89,11 @@ extension ScheduleDraft {
         }
 
         // Step 2 — Logistics
-        if let academyID = details.academyAgencyID {
+        placeType = TrainingPlaceType(apiValue: details.placeType)
+        if placeType == .external {
+            // An external venue's agency has no directory entry — only the stored name.
+            agencyName = details.academyAgencyName ?? ""
+        } else if let academyID = details.academyAgencyID {
             academy = ScheduleLogisticsDataModel.Academy(
                 id: academyID,
                 title: details.academyAgencyName ?? "",
@@ -156,7 +162,9 @@ extension ScheduleDraft {
 
     /// Normalizes fetched API values to the same 24-hour `HH:mm` representation used by
     /// the picker and payload. Unexpected values pass through so the edit form never loses data.
-    static func displayTime(_ raw: String) -> String {
+    /// The draft stores 24-hour times; the fields render them through
+    /// `ScheduleDateRules.displayTime(_:)`, so this only normalises what the API sent.
+    static func canonicalTime(_ raw: String) -> String {
         ScheduleDateRules.canonical24HourTime(raw) ?? raw
     }
 }

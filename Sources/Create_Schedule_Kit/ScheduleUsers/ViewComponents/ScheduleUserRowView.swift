@@ -75,16 +75,41 @@ struct ScheduleUserRowView: View {
         }
     }
 
+    /// The Status column, icon and all — the web pairs Available with a check, Unavailable
+    /// with a cross and Pending with a clock. A row whose status the column does not
+    /// render shows no pill, exactly as the web leaves the cell empty.
+    @ViewBuilder
     private var statusPill: some View {
-        Text(user.statusText)
-            .font(.system(size: 13, weight: .bold))
-            .foregroundColor(statusColor)
+        if let status = user.statusDisplay {
+            HStack(spacing: 4) {
+                Image(systemName: symbolName(for: status))
+                    .font(.system(size: 11, weight: .bold))
+                Text(status.title)
+                    .font(.system(size: 13, weight: .bold))
+            }
+            .foregroundColor(color(for: status))
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(Capsule().fill(statusColor.opacity(0.15)))
+            .background(Capsule().fill(color(for: status).opacity(0.15)))
+        }
     }
 
-    private var statusColor: Color { user.isConfirmed ? .green : .orange }
+    /// `fa-check` / `fa-times` / `fa-clock-o` on the web.
+    private func symbolName(for status: ScheduleUsersDataModel.RequestStatusDisplay) -> String {
+        switch status {
+        case .available:   return "checkmark"
+        case .unavailable: return "xmark"
+        case .pending:     return "clock"
+        }
+    }
+
+    private func color(for status: ScheduleUsersDataModel.RequestStatusDisplay) -> Color {
+        switch status {
+        case .available:   return .green
+        case .unavailable: return .red
+        case .pending:     return .orange
+        }
+    }
 
     private var avatarColor: Color {
         let palette: [Color] = [.orange, .pink, .purple, .green, .blue, .teal, .indigo, .red]
@@ -106,7 +131,7 @@ struct ScheduleUserRowView: View {
             user: .init(
                 id: 12276, userId: "anurag", userName: "Anurag Singh",
                 emailId: "anurag.singh@dummy.com", mobileNumber: "xxxxxxxxxx",
-                status: "False", trainingRequestStatus: "Pending",
+                status: "False", trainingRequestStatus: "Registered",
                 overAllStatus: "Completed", isPresent: false
             )
         )

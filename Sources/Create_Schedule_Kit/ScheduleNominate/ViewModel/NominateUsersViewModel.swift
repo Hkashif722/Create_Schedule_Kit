@@ -404,6 +404,10 @@ extension NominateUsersViewModel {
     /// Insert path used when embedded in Update Attendance. Hits the bare
     /// `ILTTrainingAttendance` endpoint rather than `NominateUser`, and deliberately does
     /// not call `finishFlow()` — dismissing here would pop the host Attendance screen.
+    ///
+    /// `IsPresent` comes from `AttendanceDataModel.isPresent(forStatusCode:)` — the status
+    /// here is the one picked on the Attendance tab, so the flag must be derived the same
+    /// way the tab's own Save derives it.
     @MainActor
     private func submitAttendance(
         context: NavigationViewModel.NominateAttendanceContext,
@@ -414,7 +418,7 @@ extension NominateUsersViewModel {
         let body = selectedUsers.values.map { user in
             AttendanceDataModel.InsertItem(
                 id: 0,
-                isPresent: statusCode == "ATTD",
+                isPresent: AttendanceDataModel.isPresent(forStatusCode: statusCode),
                 userId: user.id,
                 moduleId: context.moduleID,
                 scheduleId: context.scheduleID,

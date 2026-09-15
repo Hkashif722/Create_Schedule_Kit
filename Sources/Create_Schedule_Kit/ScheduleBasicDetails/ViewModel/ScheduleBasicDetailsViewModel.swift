@@ -43,6 +43,12 @@ final class ScheduleBasicDetailsViewModel: BaseViewModel {
     @Published var startTime: String?
     @Published var endTime: String?
 
+    /// What the two time fields display. `startTime`/`endTime` stay canonical 24-hour
+    /// strings — the payload, the ordering rules and the past-start check all read those —
+    /// so only the rendering is 12-hour.
+    var startTimeDisplay: String? { ScheduleDateRules.displayTime(startTime) }
+    var endTimeDisplay: String? { ScheduleDateRules.displayTime(endTime) }
+
     /// Bumped whenever the end-time field has to resync its display from the model — a
     /// refused selection or a clear. `TimePickerTextField` stores the picked time in its
     /// own `@State` and adopts `initialTimeString` only on first appearance, so changing
@@ -127,8 +133,15 @@ extension ScheduleBasicDetailsViewModel {
 
     var showWebinarSection: Bool { deliveryMode == .online }
 
+    /// The account picker plus its credential reveal.
+    ///
+    /// Hidden wherever the hand-entered Teams link is shown — create and edit alike: with
+    /// `ATPTLWCS` on, the organiser supplies the meeting themselves and no meeting is
+    /// generated from an account, so the picker and the credentials say nothing about the
+    /// schedule and the link field stands in their place.
     var showCredentialSection: Bool {
-        showWebinarSection
+        !showTeamsLinkField
+            && showWebinarSection
             && (webinarType?.hasCredentialAPI ?? false)
             && !(credentials?.isEmpty ?? true)
             && selectedCredential != nil
@@ -153,12 +166,11 @@ extension ScheduleBasicDetailsViewModel {
 
     // MARK: Meeting link
 
-    /// Teams asks for a link by hand once `ATPTLWCS` is on. Hidden in edit mode:
-    /// `UpdatePayload` echoes the fetched schedule's own meeting details and never reads
-    /// the draft, so an editable link there would go nowhere.
+    /// Teams asks for a link by hand once `ATPTLWCS` is on — in edit mode as well, where
+    /// the draft opens on the schedule's current link and `UpdatePayload` overlays whatever
+    /// is typed onto the fetched meeting details.
     var showTeamsLinkField: Bool {
-        !isEditMode
-            && showWebinarSection
+        showWebinarSection
             && WebinarLinkRules.usesStaticLink(for: webinarType, isEnabled: isTeamsStaticLinkEnabled)
     }
 

@@ -2,7 +2,10 @@
 //  AttendanceDataModel.swift
 //  Create_Schedule_Kit
 //
-//  Endpoints + DTOs for the "Update Attendance" screen (launched from a schedule card).
+//  Endpoints + DTOs for the attendance flow, which is three screens: Update Attendance
+//  (launched from a schedule card, owns the date), Bulk Mark Attendance (status + selection
+//  + save) and Attendees (read-only). The QR screens have their own model —
+//  `ScheduleAttendanceQR/Model/AttendanceQRDataModel.swift`.
 //
 //   • ILTTrainingAttendance/GetUsersForAttendance        → [AttendanceUser]  (paginated)
 //   • ILTTrainingAttendance/GetUsersCountForAttendance   → Int               (total, parallel)
@@ -159,16 +162,16 @@ enum AttendanceDataModel {
     /// |-------------------|----------|-----------|
     /// | `ATTD`            | Attended | `true`    |
     /// | `NOSHOWNCOSTAPPL` | Absent   | `true`    |
-    /// | `WDLNCOSTAPPL`    | Withdrew | `false`   |
+    /// | `WDLNCOSTAPPL`    | Withdrew | `true`    |
     /// | `WAIVER`          | Waived   | `false`   |
     ///
-    /// Attended and Absent are both real attendance outcomes for someone who was expected at
-    /// the session, so the flag is set; Withdrew and Waived are administrative exclusions.
-    /// This matches the web client, which sends `IsPresent: true` for Absent. Anything not in
-    /// the table falls to `false`.
+    /// Attended, Absent and Withdrew are all outcomes recorded against someone who was
+    /// expected at the session, so the flag is set; only Waived is a pure administrative
+    /// exclusion. This matches the web client, which sends `IsPresent: true` for Absent and
+    /// Withdrew alike. Anything not in the table falls to `false`.
     static func isPresent(forStatusCode code: String) -> Bool {
         switch code {
-        case StatusCode.attended, StatusCode.absent: return true
+        case StatusCode.attended, StatusCode.absent, StatusCode.withdrew: return true
         default: return false
         }
     }

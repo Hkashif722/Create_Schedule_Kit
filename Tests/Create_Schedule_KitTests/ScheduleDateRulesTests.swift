@@ -277,6 +277,32 @@ private func date(_ y: Int, _ m: Int, _ d: Int) -> Date {
         #expect(ScheduleDateRules.isStartInPast(startDate: date(2026, 8, 20), startTime: nil, now: now) == false)
         #expect(ScheduleDateRules.isStartInPast(startDate: date(2026, 8, 19), startTime: nil, now: now) == true)
     }
+
+    // MARK: - 12-hour display for the start/end time fields
+
+    /// The fields render 12-hour values; the draft still stores 24-hour ones.
+    @Test func theTimeFieldsRenderTwelveHourValues() {
+        #expect(ScheduleDateRules.displayTimeFormat == "h:mm a")
+        #expect(ScheduleDateRules.displayTime("13:30") == pickerTime(hour: 13, minute: 30))
+        #expect(ScheduleDateRules.displayTime("00:05") == pickerTime(hour: 0, minute: 5))
+        #expect(ScheduleDateRules.displayTime("12:00") == pickerTime(hour: 12, minute: 0))
+    }
+
+    /// The round trip that keeps the payload and the ordering rules on 24-hour values:
+    /// whatever the field shows must canonicalise straight back to what was stored.
+    @Test(arguments: ["00:00", "09:05", "12:00", "13:30", "23:59"])
+    func aDisplayedTimeCanonicalisesBackToTheStoredValue(stored: String) throws {
+        let displayed = try #require(ScheduleDateRules.displayTime(stored))
+        #expect(ScheduleDateRules.canonical24HourTime(displayed) == stored)
+    }
+
+    /// API values carry seconds; anything unparsable leaves the field on its placeholder
+    /// instead of showing a string the picker cannot read back.
+    @Test func displayTimeAcceptsAPIValuesAndRejectsJunk() {
+        #expect(ScheduleDateRules.displayTime("18:07:00") == pickerTime(hour: 18, minute: 7))
+        #expect(ScheduleDateRules.displayTime("garbage") == nil)
+        #expect(ScheduleDateRules.displayTime(nil) == nil)
+    }
 }
 
 private func at(_ y: Int, _ m: Int, _ d: Int, hour: Int, minute: Int) -> Date {

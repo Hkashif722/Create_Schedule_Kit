@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import SwiftUIUtilities
 
 // MARK: - Cross-cutting enums
 
@@ -55,12 +56,52 @@ enum WebinarType: String, CaseIterable, Identifiable {
         }
     }
 
+    /// The value the API stores for this provider — what the create body sends.
+    ///
+    /// Each value is taken from a captured web create body. They follow no single rule —
+    /// `"zoom"` and `"googlemeet"` are plain lowercase while Teams is `"TEAMS"` — so this
+    /// is a table of observed values, not a transformation of `rawValue`.
+    ///
+    /// Reading is unaffected either way — `ScheduleDraft.apply(details:…)` matches the
+    /// server's value case-insensitively.
+    var apiValue: String {
+        switch self {
+        case .zoom:        return "zoom"
+        case .teams:       return "TEAMS"
+        case .googleMeet:  return "googlemeet"
+        case .gotoMeeting: return "gotomeeting"
+        }
+    }
+
     /// Whether this provider exposes a stored-credential API. GoTo Meeting does not.
     var hasCredentialAPI: Bool {
         switch self {
         case .zoom, .teams, .googleMeet: return true
         case .gotoMeeting:               return false
         }
+    }
+}
+
+/// Whether the venue belongs to an in-house academy or an outside agency. Sent as
+/// `placeType`; it decides which owner field the Venue step asks for — an academy from the
+/// directory (Internal) or a free-text agency name (External, which has no directory).
+enum TrainingPlaceType: String, CaseIterable {
+    case `internal`
+    case external
+
+    var displayTitle: String {
+        switch self {
+        case .internal: return "Internal"
+        case .external: return "External"
+        }
+    }
+
+    /// Value sent as `placeType`.
+    var apiValue: String { displayTitle }
+
+    /// Maps a stored `placeType` back to the picker; anything unrecognized reads as Internal.
+    init(apiValue: String?) {
+        self = TrainingPlaceType(rawValue: (apiValue ?? "").trimmingCharacters(in: .whitespaces).lowercased()) ?? .internal
     }
 }
 
@@ -79,6 +120,106 @@ enum TrainerType: String, CaseIterable {
 
     /// Value sent to the trainer-search API (capitalised type).
     var apiValue: String { displayTitle }
+
+    /// Normalizes a server/raw type to the wizard's casing ("internal" → "Internal").
+    /// An unrecognized value passes through trimmed; an empty one is `nil`.
+    static func normalized(_ raw: String?) -> String? {
+        let trimmed = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return TrainerType(rawValue: trimmed.lowercased())?.displayTitle ?? trimmed
+    }
+
+    /// The trainer type a name carries as a trailing "(Internal)" / "(External)" /
+    /// "(Consultant)", normalized to the wizard's casing. `GetScheduleDetailsByID` appends
+    /// each trainer's own type to its `nameUserId` ("kashif-kashif (Internal)"), which is the
+    /// only per-trainer type the response reliably carries — the schedule's `trainerType` is
+    /// a single value for the whole schedule. Nil when the name ends in something that is not
+    /// a known type, such as "Chetan Wadil (chetan.w)", or in no parenthetical at all.
+    static func typeSuffix(in name: String) -> String? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasSuffix(")"),
+              let open = trimmed.lastIndex(of: "("),
+              open > trimmed.startIndex
+        else { return nil }
+
+        let inner = trimmed[trimmed.index(after: open)..<trimmed.index(before: trimmed.endIndex)]
+        return TrainerType(rawValue: inner.trimmingCharacters(in: .whitespaces).lowercased())?.displayTitle
+    }
+
+    /// Drops a trailing "(Internal)" / "(External)" / "(Consultant)" from a trainer name.
+    /// The server already appends the type to `nameUserId` ("kashif-kashif (External)"), so
+    /// anything that shows the type alongside the name — a chip suffix, a type badge — would
+    /// otherwise print it twice. Only a known type is removed: a name that ends in something
+    /// else, such as "Chetan Wadil (chetan.w)", is left alone.
+    static func strippingTypeSuffix(from name: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard typeSuffix(in: trimmed) != nil, let open = trimmed.lastIndex(of: "(") else { return trimmed }
+        return trimmed[..<open].trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+extension ScheduleDraft {
+
+    /// The type to send for one trainer. Selecting a trainer stamps the type that was active
+    /// at that moment (`Trainer.withUserType`), so a list that mixes Internal and External
+    /// trainers keeps each row's own type instead of flattening every row to whichever
+    /// segment happens to be selected when the wizard is saved. The wizard's current type is
+    /// only the fallback for a row that carries none.
+    func apiTrainerType(for trainer: ScheduleLogisticsDataModel.Trainer) -> String {
+        TrainerType.normalized(trainer.userType) ?? trainerType.apiValue
+    }
+
+    /// `nameUserId` for one trainer — "LMS Admin - lmsadmin (Internal)". `searchTrainer`
+    /// returns the composed "name - login" with no type, and the web client appends the
+    /// trainer's own type before sending. The server echoes this string back on
+    /// `GetScheduleDetailsByID`, where the Schedule Details badge reads it — so it is
+    /// composed from `apiTrainerType(for:)`, and the suffix can never disagree with the
+    /// row's `trainerType`.
+    func apiTrainerNameUserId(for trainer: ScheduleLogisticsDataModel.Trainer) -> String {
+        let base = TrainerType.strippingTypeSuffix(from: trainer.nameUserId ?? trainer.name)
+        return "\(base) (\(apiTrainerType(for: trainer)))"
+    }
+
+    /// `emailID` / `trainerEmail` for one trainer. `searchTrainer` returns the address
+    /// encrypted, but the web client sends it in the clear and the server stores whatever it
+    /// is given — an iOS-created schedule came back from `GetScheduleDetailsByID` with the
+    /// cipher text sitting in `trainerEmail`. A value that does not decrypt (already plain,
+    /// or encrypted under another key) is passed through rather than blanked.
+    static func apiTrainerEmail(_ raw: String?) -> String {
+        guard let raw, !raw.isEmpty else { return "" }
+        let decrypted = EncryptDecryptUtility.shared.newDecryptString(responseStr: raw)
+        return decrypted.isEmpty ? raw : decrypted
+    }
+
+    /// `webinarAccount` — the meeting host's address, in the clear.
+    ///
+    /// Same story as `apiTrainerEmail`: `GetTeamsCred` & co. hand the app an AES-encrypted
+    /// address (the reveal card decrypts it for display), while the web posts the plain
+    /// one — `"webinarAccount": "sysadmin@enthralltech.com"`. A value that does not
+    /// decrypt (already plain, or encrypted under another key) is passed through rather
+    /// than blanked, so the account is never dropped from the body.
+    var apiWebinarAccount: String? {
+        guard let raw = credential?.first?.teamsEmail, !raw.isEmpty else { return nil }
+        let decrypted = EncryptDecryptUtility.shared.newDecryptString(responseStr: raw)
+        return decrypted.isEmpty ? raw : decrypted
+    }
+
+    /// `academyAgencyId` — an id only exists for an academy picked from the directory;
+    /// an external agency is a typed name with no id.
+    var apiAcademyAgencyID: Int? {
+        placeType == .internal ? academy?.id : nil
+    }
+
+    /// `academyAgencyName` — the academy's title, or the typed agency name.
+    var apiAcademyAgencyName: String? {
+        switch placeType {
+        case .internal:
+            return academy?.title
+        case .external:
+            let trimmed = agencyName.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+    }
 }
 
 // MARK: - Holiday model
@@ -138,6 +279,10 @@ final class ScheduleDraft {
     var credential: [ScheduleBasicDetailsDataModel.Credential]?
     /// Teams meeting link typed by the organiser — only ever set while `ATPTLWCS` is on.
     var teamsLink: String?
+    /// The schedule's existing Teams meeting rows, fetched by schedule code in edit mode
+    /// and held verbatim. Echoed back on update with only `joinUrl` replaced, so the
+    /// server updates that meeting rather than gaining a second one.
+    var teamsMeeting: JSONValue?
     var timezone: ScheduleBasicDetailsDataModel.TimezoneItem?
     var startDate: Date?
     var endDate: Date?
@@ -147,7 +292,11 @@ final class ScheduleDraft {
     var holidays: [HolidayDay] = []
 
     // Step 2 — Logistics
+    var placeType: TrainingPlaceType = .internal
+    /// Internal venues only — picked from the academy type-ahead.
     var academy: ScheduleLogisticsDataModel.Academy?
+    /// External venues only — typed by hand, since agencies have no directory to search.
+    var agencyName: String = ""
     var trainingPlace: ScheduleLogisticsDataModel.TrainingPlace?
     var trainerType: TrainerType = .internal
     var trainers: [ScheduleLogisticsDataModel.Trainer] = []

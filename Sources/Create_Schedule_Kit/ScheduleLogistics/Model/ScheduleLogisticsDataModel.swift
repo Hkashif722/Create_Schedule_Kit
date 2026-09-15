@@ -126,12 +126,13 @@ struct ScheduleLogisticsDataModel {
         /// "Chetan Wadil (Internal)" — the composed display the web client shows for a
         /// selected trainer. Falls back to the plain name when the type is unknown. The raw
         /// type is normalized through `TrainerType` so casing matches the web ("internal" →
-        /// "Internal"); an unrecognized value passes through as-is.
+        /// "Internal"); an unrecognized value passes through as-is. A type the server already
+        /// appended to `nameUserId` is dropped first, so the chip never reads
+        /// "kashif-kashif (External) (External)".
         var displayNameWithType: String {
-            let raw = (userType ?? "").trimmingCharacters(in: .whitespaces)
-            guard !raw.isEmpty else { return displayName }
-            let title = TrainerType(rawValue: raw.lowercased())?.displayTitle ?? raw
-            return "\(displayName) (\(title))"
+            let base = TrainerType.strippingTypeSuffix(from: displayName)
+            guard let title = TrainerType.normalized(userType) else { return base }
+            return "\(base) (\(title))"
         }
 
         /// Copy with the trainer type stamped in. The search endpoint does not reliably echo

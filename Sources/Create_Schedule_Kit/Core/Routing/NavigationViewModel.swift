@@ -64,6 +64,46 @@ extension NavigationViewModel {
         let dateRangeText: String
     }
 
+    // MARK: - Bulk mark / attendees
+    // Both are pushed from Update Attendance and share one view model; `mode` picks which
+    // screen renders. `attendanceDate` is the day picked on Update Attendance — optional
+    // because the view model must not trust the caller, and Attendees needs no date at all.
+    struct AttendanceUsersNavModel {
+        let mode: AttendanceUsersMode
+        let scheduleID: Int
+        let courseID: Int
+        let moduleID: Int
+        let scheduleCode: String
+        let attendanceDate: Date?
+        /// Fired after a successful save or delete so the screen behind refreshes its count.
+        let onAttendanceChanged: () -> Void
+    }
+
+    // MARK: - QR attendance
+    // Pushed from Update Attendance's Scan QR. A scan always marks Attended, so no status
+    // travels — only the day and the schedule's identifiers.
+    struct AttendanceQRScannerNavModel {
+        let scheduleID: Int
+        let courseID: Int
+        let moduleID: Int
+        /// Sent as `CourseTitle` on the mark body.
+        let courseName: String
+        let attendanceDate: Date
+        /// Fired after a learner is successfully marked, so the screen behind refreshes.
+        let onMarked: () -> Void
+    }
+
+    // Presented from Update Attendance's Download. The QR is generated on the device — no
+    // endpoint produces it.
+    struct ScheduleQRCodeNavModel {
+        let scheduleID: Int
+        let courseID: Int
+        let moduleID: Int
+        let courseName: String
+        let scheduleCode: String
+        let attendanceDate: Date
+    }
+
     // MARK: - Cancel schedule bottom sheet
     // Opened from a schedule card's Cancel Schedule action. `onCancelled` fires after a successful
     // cancellation so the list — which is still on screen — owns the success toast and the reload;

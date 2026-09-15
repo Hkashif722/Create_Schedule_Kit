@@ -38,14 +38,7 @@ struct ScheduleDetailView: View {
                         ScheduleInfoCardView(rows: infoRows)
                     }
 
-                    if viewModel.schedule.trainerName != "-" {
-                        section("TRAINER") {
-                            TrainerCardView(
-                                name: viewModel.schedule.trainerName,
-                                trainerType: viewModel.schedule.trainerType ?? "Internal"
-                            )
-                        }
-                    }
+                    trainersSection
 
                     nomineesSection
                 }
@@ -98,9 +91,23 @@ private extension ScheduleDetailView {
             ScheduleInfoRow(label: "Code", value: s.scheduleCode ?? "-"),
             ScheduleInfoRow(label: "Module", value: s.moduleName ?? "-"),
             ScheduleInfoRow(label: "Reg. end", value: s.regEndText.isEmpty ? "-" : s.regEndText),
-            ScheduleInfoRow(label: "Coordinator", value: viewModel.coordinatorText),
             ScheduleInfoRow(label: "Seat capacity", value: viewModel.seatCapacityText)
         ]
+    }
+
+    /// Every trainer on the schedule, one card each. Hidden when the schedule has none.
+    @ViewBuilder
+    var trainersSection: some View {
+        let trainers = viewModel.trainers
+        if !trainers.isEmpty {
+            section(trainers.count == 1 ? "TRAINER" : "TRAINERS (\(trainers.count))") {
+                VStack(spacing: 10) {
+                    ForEach(trainers) { trainer in
+                        TrainerCardView(name: trainer.name, trainerType: trainer.type)
+                    }
+                }
+            }
+        }
     }
 
     var nomineesSection: some View {

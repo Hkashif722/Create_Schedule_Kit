@@ -51,3 +51,45 @@ enum JSONValue: Codable, Equatable {
         }
     }
 }
+
+
+// MARK: - Meeting-details access
+
+/// The webinar detail fields (`teamsScheduleDetails`, `zoomScheduleDetails`, …) are echoed
+/// back to the server untouched, so they are held as raw JSON rather than modelled. Edit
+/// mode has to read one value out of them and put one value back, which is all this adds.
+extension JSONValue {
+
+    /// The string at `key` — on this object, or on the first object of an array.
+    func firstString(forKey key: String) -> String? {
+        switch self {
+        case .object(let fields):
+            if case .string(let value)? = fields[key] { return value }
+            return nil
+        case .array(let items):
+            return items.compactMap { $0.firstString(forKey: key) }.first
+        default:
+            return nil
+        }
+    }
+
+    /// A copy with `key` replaced on this object, or on the first object of an array —
+    /// every other field, and every other element, is preserved so the server still sees
+    /// the row it sent. `nil` when there is no object to write into.
+    func settingFirst(_ key: String, to value: JSONValue) -> JSONValue? {
+        switch self {
+        case .object(var fields):
+            fields[key] = value
+            return .object(fields)
+        case .array(let items):
+            guard let index = items.firstIndex(where: { if case .object = $0 { return true } else { return false } }),
+                  let updated = items[index].settingFirst(key, to: value)
+            else { return nil }
+            var copy = items
+            copy[index] = updated
+            return .array(copy)
+        default:
+            return nil
+        }
+    }
+}

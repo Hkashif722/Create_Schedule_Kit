@@ -72,6 +72,28 @@ import Testing
         #expect(model.canContinue)
     }
 
+    /// The account picker and credential reveal are the pair the link field replaces, so
+    /// they must still be there for every tenant that has not enabled `ATPTLWCS` — the
+    /// only state these tests can reach, since the flag is set from the config response.
+    @MainActor
+    @Test func theAccountAndCredentialsStayWhileTheConfigIsOff() {
+        #expect(viewModel(completeDraft(.teams)).showCredentialSection)
+        #expect(viewModel(completeDraft(.zoom)).showCredentialSection)
+    }
+
+    /// Both are hidden together, whatever hides them: an offline schedule has no account
+    /// section and no link field either.
+    @MainActor
+    @Test func neitherTheLinkNorTheCredentialsShowForAnOfflineSchedule() {
+        let draft = completeDraft(.teams)
+        draft.deliveryMode = .offline
+        draft.webinarType = nil
+
+        let model = viewModel(draft)
+        #expect(model.showTeamsLinkField == false)
+        #expect(model.showCredentialSection == false)
+    }
+
     @MainActor
     @Test func zoomIsUntouchedByThisFeature() {
         let model = viewModel(completeDraft(.zoom))
@@ -92,14 +114,17 @@ import Testing
         #expect(model.canContinue)
     }
 
+    /// Edit mode shows the link field on the same terms as create — `UpdatePayload`
+    /// overlays the typed link onto the fetched meeting row — so with the config off there
+    /// is no field and nothing to satisfy, exactly as for a new schedule.
     @MainActor
-    @Test func editModeNeverBlocksContinueOnALinkItCannotShow() {
-        // Edit mode hides the row because `UpdatePayload` echoes the fetched schedule's own
-        // meeting details — requiring a link there would wedge every Teams schedule edit.
-        let model = viewModel(completeDraft(.teams), isEditMode: true)
+    @Test func editModeFollowsTheSameLinkGateAsCreate() {
+        let editing = viewModel(completeDraft(.teams), isEditMode: true)
+        let creating = viewModel(completeDraft(.teams))
 
-        #expect(model.showTeamsLinkField == false)
-        #expect(model.requiresTeamsLink == false)
-        #expect(model.teamsLinkError == nil)
+        #expect(editing.showTeamsLinkField == creating.showTeamsLinkField)
+        #expect(editing.showCredentialSection == creating.showCredentialSection)
+        #expect(editing.requiresTeamsLink == false)
+        #expect(editing.teamsLinkError == nil)
     }
 }

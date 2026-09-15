@@ -28,6 +28,7 @@ internal struct APIConst {
     static let getScheduleData = "GetScheduleData"
     static let count = "count"
     static let getScheduleDetailsByID = "GetScheduleDetailsByID"
+    static let getTeamsMeetingByScheduleCode = "GetTeamsMeetingByScheduleCode"
     static let updateILTScheduleWithMeeting = "UpdateILTScheduleWithMeeting"
     static let cancellationSchedule = "CancellationSchedule"
     static let getNominationCountDetails = "GetNominationCountDetails"
@@ -74,6 +75,9 @@ internal struct APIConst {
     static let getUsersForWaiting = "GetUsersForWaiting"
     static let getUsersCountForAttendance = "GetUsersCountForAttendance"
     static let attendanceDelete = "AttendanceDelete"
+    /// The route an end user's own device marks attendance on. Admin/trainer devices post to
+    /// the bare `ILTTrainingAttendance` controller instead.
+    static let updateILTTrainingAttendance = "UpdateILTTrainingAttendance"
     static let getDetailsForUserAttendance = "GetDetailsForUserAttendance"
 
     // MARK: - ConfigurableParameters

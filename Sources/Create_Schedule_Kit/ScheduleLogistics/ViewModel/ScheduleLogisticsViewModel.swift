@@ -15,14 +15,19 @@ final class ScheduleLogisticsViewModel: BaseViewModel {
 
     // MARK: - Dependencies
     private let draft: ScheduleDraft
-    /// Edit mode unlocks the coordinator (server type-ahead) and contact number fields.
+    /// Edit mode unlocks the contact number field. Coordinator name stays read-only in
+    /// both modes — it follows the training place.
     let isEditMode: Bool
     private let onBack: () -> Void
     private let onContinue: () -> Void
 
     // MARK: - Published State
+    /// Internal venues are owned by an academy from the directory, External ones by an
+    /// agency the organiser types in — the owner field swaps with this.
+    @Published var placeType: TrainingPlaceType = .internal
     @Published var academyResults: [ScheduleLogisticsDataModel.Academy] = []
     @Published var selectedAcademy: ScheduleLogisticsDataModel.Academy?
+    @Published var agencyName: String = ""
 
     @Published var trainingPlaceResults: [ScheduleLogisticsDataModel.TrainingPlace] = []
     @Published var selectedTrainingPlace: ScheduleLogisticsDataModel.TrainingPlace?
@@ -69,34 +74,22 @@ final class ScheduleLogisticsViewModel: BaseViewModel {
     }
 
     private func restoreFromDraft() {
+        placeType = draft.placeType
         selectedAcademy = draft.academy
+        agencyName = draft.agencyName
         selectedTrainingPlace = draft.trainingPlace
         trainerType = draft.trainerType
         selectedTrainers = draft.trainers
         selectedTags = draft.tags
         coordinatorName = draft.coordinatorName
         contactNumber = draft.contactNumber
-        // Show the current coordinator in the type-ahead field when editing.
-        if isEditMode, !draft.coordinatorName.isEmpty {
-            selectedCoordinator = ScheduleLogisticsDataModel.CoordinatorUser(
-                id: "current-coordinator",
-                dB_UserId: nil,
-                name: draft.coordinatorName,
-                emailId: nil,
-                userId: nil,
-                profilePicture: nil,
-                mobileNumber: nil,
-                userType: nil,
-                nameUserId: nil,
-                isDeleted: nil,
-                userMasterId: nil
-            )
-        }
     }
 }
 
 // MARK: - Derived UI State
 extension ScheduleLogisticsViewModel {
+
+    var placeTypeOptions: [TrainingPlaceType] { TrainingPlaceType.allCases }
 
     var trainerTypeOptions: [TrainerType] { TrainerType.allCases }
 
@@ -110,9 +103,26 @@ extension ScheduleLogisticsViewModel {
         selectedTags.contains(where: { $0.id == tag.id })
     }
 
-    var canContinue: Bool {
-        selectedTrainingPlace != nil && !selectedTrainers.isEmpty
+    /// Whether the venue's owner is filled in — an academy for Internal, a typed agency
+    /// name for External. Both are required, as on the web.
+    var hasVenueOwner: Bool {
+        switch placeType {
+        case .internal: return selectedAcademy != nil
+        case .external: return !agencyName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
     }
+
+    /// The first unmet requirement of the step, or nil when it is complete.
+    var validationMessage: String? {
+        if !hasVenueOwner {
+            return placeType == .internal ? "Select an academy name." : "Enter an agency name."
+        }
+        if selectedTrainingPlace == nil { return "Select a training place." }
+        if selectedTrainers.isEmpty { return "Add at least one trainer." }
+        return nil
+    }
+
+    var canContinue: Bool { validationMessage == nil }
 }
 
 // MARK: - Actions
@@ -126,6 +136,15 @@ extension ScheduleLogisticsViewModel {
 
     func didSelectAcademy(_ academy: ScheduleLogisticsDataModel.Academy) {
         selectedAcademy = academy
+    }
+
+    /// Switching the venue type swaps the owner field. Each side keeps what was already
+    /// filled in, so toggling back and forth does not lose a typed agency name — only the
+    /// side matching the selected type is ever sent.
+    func didSelectPlaceType(_ type: TrainingPlaceType) {
+        guard type != placeType else { return }
+        placeType = type
+        academyResults = []
     }
 
     func onTrainingPlaceSearch(_ query: String) {
@@ -143,16 +162,25 @@ extension ScheduleLogisticsViewModel {
         Task { [weak self] in await self?.fetchTrainingPlaceDetail(id: place.id) }
     }
 
+    /// Switching the type starts the *pick* over: the field goes back to its placeholder
+    /// with no keyword, no results and no source question.
+    ///
+    /// Already-added trainers stay — the segmented control is how a mixed list is built,
+    /// and each chip carries the type it was added under (see
+    /// `ScheduleDraft.apiTrainerType(for:)`). They are removed with the chip's own ✕.
+    ///
+    /// A tap on the already-selected type is not a change and must not clear anything.
     func didSelectTrainerType(_ type: TrainerType) {
+        guard type != trainerType else { return }
         trainerType = type
+        // Results and the last keyword are scoped to the type — a stale list would offer
+        // names this type cannot use, so the field starts from its placeholder instead.
+        trainerResults = []
+        trainerQuery = ""
         // The source question belongs to External only, and re-asking it on every switch is
         // the safe default — a source picked for a previous type says nothing about this one.
         trainerSource = nil
         isTrainerSourceMenuOpen = false
-        // Results are scoped to the type, so re-search (or clear) on change.
-        let query = trainerQuery
-        guard query.count >= 2 else { trainerResults = []; return }
-        Task { [weak self] in await self?.searchTrainers(query: query) }
     }
 
     func didSelectTrainerSource(_ source: TrainerSource) {
@@ -244,8 +272,8 @@ extension ScheduleLogisticsViewModel {
     }
 
     func didTapContinue() {
-        guard canContinue else {
-            toast = Toast(style: .warning, message: "Select a training place and at least one trainer.")
+        if let message = validationMessage {
+            toast = Toast(style: .warning, message: message)
             return
         }
         commitToDraft()
@@ -253,7 +281,9 @@ extension ScheduleLogisticsViewModel {
     }
 
     private func commitToDraft() {
+        draft.placeType = placeType
         draft.academy = selectedAcademy
+        draft.agencyName = agencyName
         draft.trainingPlace = selectedTrainingPlace
         draft.trainerType = trainerType
         draft.trainers = selectedTrainers

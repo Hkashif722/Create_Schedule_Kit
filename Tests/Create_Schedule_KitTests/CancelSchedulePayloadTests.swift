@@ -16,7 +16,8 @@ import Testing
 @Suite struct CancelSchedulePayloadTests {
 
     init() {
-        // Encrypting the schedule id reads the shared utility environment.
+        // The encrypt helper the `scheduleIDIsSentUnencrypted` check compares against reads
+        // the shared utility environment.
         SwiftUtilityEnvironment.configure(
             SwiftUtilityConfig(
                 encryptionDecryptionKey: "preview-key",
@@ -57,28 +58,42 @@ import Testing
 
     // MARK: - Payload
 
+    @MainActor
     @Test func cancelBodyCarriesExactlyTheScheduleIDAndReason() throws {
-        let payload = CancelScheduleDataModel.CancelPayload(
-            scheduleID: "anJbdxE14AVKZkxIZabyHQ==",
-            reason: "cancel"
-        )
-        let object = try encodeToObject(payload)
+        let viewModel = Self.cancelViewModel()
+        viewModel.reason = "Venue unavailable"
+
+        let object = try encodeToObject(viewModel.cancelPayload)
 
         #expect(Set(object.keys) == ["scheduleID", "reason"])
-        #expect(object["reason"] as? String == "cancel")
+        #expect(object["reason"] as? String == "Venue unavailable")
     }
 
-    /// The encrypted id is an opaque base64 string — it must survive encoding byte for byte,
-    /// including the `==` padding, and must not be re-encoded or escaped.
-    @Test func encryptedScheduleIDIsPassedThroughVerbatim() throws {
-        let encrypted = "anJbdxE14AVKZkxIZabyHQ=="
-        let payload = CancelScheduleDataModel.CancelPayload(scheduleID: encrypted, reason: "cancel")
-        let object = try encodeToObject(payload)
+    /// `CancellationSchedule` does not decrypt its input: it takes the plain numeric id, so an
+    /// AES value like `"e4+LnddqL9V7/pYjXs99Ew=="` names no schedule the endpoint can find.
+    @MainActor
+    @Test func scheduleIDIsSentUnencrypted() throws {
+        let viewModel = Self.cancelViewModel()
+        viewModel.reason = "Venue unavailable"
 
-        #expect(object["scheduleID"] as? String == encrypted)
+        let object = try encodeToObject(viewModel.cancelPayload)
+        let sent = try #require(object["scheduleID"] as? String)
 
-        let raw = try #require(String(data: try JSONEncoder().encode(payload), encoding: .utf8))
-        #expect(raw.contains("anJbdxE14AVKZkxIZabyHQ=="))
+        #expect(sent == "4127")
+        // Nothing base64-shaped: an encrypted id is padded and carries non-numeric bytes.
+        #expect(Int(sent) == 4127)
+        #expect(EncryptDecryptUtility.shared.newEncryptValueString(valueStr: "4127") != sent)
+    }
+
+    /// The reason is trimmed on the way into the body, matching the validation that gates submit.
+    @MainActor
+    @Test func reasonIsTrimmedInTheBody() throws {
+        let viewModel = Self.cancelViewModel()
+        viewModel.reason = "   Trainer unavailable   "
+
+        let object = try encodeToObject(viewModel.cancelPayload)
+
+        #expect(object["reason"] as? String == "Trainer unavailable")
     }
 
     // MARK: - Registration-window gate

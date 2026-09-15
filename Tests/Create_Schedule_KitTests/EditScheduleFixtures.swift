@@ -94,4 +94,118 @@ enum EditScheduleFixtures {
         "requestApproval": null
     }
     """
+
+    /// Verbatim `GetScheduleDetailsByID` response for a schedule that mixes trainer types
+    /// (SC9052, UAT): two Internal trainers and one External. Each row carries its own
+    /// `trainerType`, and the server appends the same type to `nameUserId`.
+    static let mixedTrainerTypesDetailsJSON = """
+    {
+        "id": 4423,
+        "scheduleCode": "SC9052",
+        "moduleId": 2359,
+        "batchId": null,
+        "startDate": "2026-09-07T00:00:00",
+        "endDate": "2026-09-07T00:00:00",
+        "startTime": "15:09",
+        "endTime": "15:12",
+        "startTimeString": null,
+        "endTimeString": null,
+        "registrationEndDate": "2026-09-07T00:00:00",
+        "isActive": true,
+        "isDeleted": false,
+        "placeID": 6,
+        "trainerType": "Internal",
+        "placeName": "Enthralltech Learning academy ",
+        "moduleName": "ELGI trial ",
+        "courseName": "ILT 12",
+        "categoryName": "demo",
+        "subCategoryName": null,
+        "subSubCategoryName": null,
+        "courseCode": "1683",
+        "courseType": null,
+        "academyAgencyID": 2,
+        "academyAgencyName": "Enthralltech",
+        "academyTrainerID": null,
+        "trainerList": [
+            {
+                "academyTrainerID": 9868,
+                "academyTrainerName": "LMS Admin",
+                "trainerType": "Internal",
+                "emailID": null,
+                "trainerEmail": "lmsadmin11@enthral.com",
+                "nameUserId": "LMS Admin-lmsadmin (Internal)"
+            },
+            {
+                "academyTrainerID": 12000,
+                "academyTrainerName": "Ram",
+                "trainerType": "External",
+                "emailID": null,
+                "trainerEmail": "ram.domkondwar@gmail.com",
+                "nameUserId": "Ram-8668946281 (External)"
+            },
+            {
+                "academyTrainerID": 8973,
+                "academyTrainerName": "kashif",
+                "trainerType": "Internal",
+                "emailID": null,
+                "trainerEmail": "khasif@gmail.com",
+                "nameUserId": "kashif-kashif (Internal)"
+            }
+        ],
+        "holidayList": [
+            {
+                "date": "2026-09-07T00:00:00",
+                "isHoliday": false,
+                "reason": "Work Day"
+            }
+        ],
+        "topicList": [],
+        "agencyTrainerName": null,
+        "academyTrainerName": null,
+        "trainerDescription": null,
+        "scheduleType": "Scheduled",
+        "reasonForCancellation": null,
+        "city": "Pune",
+        "seatCapacity": "40",
+        "contactNumber": null,
+        "postalAddress": "Pune",
+        "contactPersonName": null,
+        "placeType": "Internal",
+        "courseID": 2232,
+        "status": true,
+        "eventLogo": null,
+        "cost": 0.0,
+        "currency": "",
+        "webinarType": null,
+        "zoomCode": null,
+        "batchCode": null,
+        "batchName": null,
+        "userName": null,
+        "userCreated": false,
+        "trainerName": null,
+        "teamsScheduleDetails": null,
+        "zoomScheduleDetails": null,
+        "googleMeetDetails": null,
+        "purpose": "Planned Training",
+        "scheduleCapacity": 40,
+        "feedbackId": null,
+        "feedbackName": null,
+        "createdDate": "07 Sep 2026 03:05 PM",
+        "modifiedDate": "07 Sep 2026 03:05 PM",
+        "createdBy": "LMS Admin",
+        "modifiedBy": "LMS Admin",
+        "timezone": "India Standard Time",
+        "isWebinar": false,
+        "webinarAccount": null,
+        "tagList": [],
+        "radiusMeters": null,
+        "geofencingEnabled": false,
+        "latitude": null,
+        "longitude": null,
+        "record": false,
+        "autoStartRecording": false,
+        "allowStartStopRecording": false,
+        "requestApproval": null
+    }
+    """
 }

@@ -153,14 +153,13 @@ enum ScheduleUsersDataModel {
 
         var displayName: String { userName ?? userId ?? "User \(id)" }
 
-        var isConfirmed: Bool { (status ?? "").lowercased() == "true" }
-
-        /// "Confirmed" once the nomination is accepted, otherwise whatever the server calls
-        /// the request's state — "Pending" when it says nothing at all.
-        var statusText: String {
-            if isConfirmed { return "Confirmed" }
-            return trainingRequestStatus ?? "Pending"
+        var statusDisplay: RequestStatusDisplay? {
+            RequestStatusDisplay(trainingRequestStatus: trainingRequestStatus)
         }
+
+        /// The pill's text, empty for a status the column does not render — the web leaves
+        /// that cell blank.
+        var statusText: String { statusDisplay?.title ?? "" }
 
         var initials: String {
             let parts = displayName
@@ -169,6 +168,29 @@ enum ScheduleUsersDataModel {
                 .compactMap { $0.first.map(String.init) }
             let joined = parts.joined().uppercased()
             return joined.isEmpty ? "?" : joined
+        }
+    }
+
+    enum RequestStatusDisplay {
+        case available
+        case unavailable
+        case pending
+
+        init?(trainingRequestStatus raw: String?) {
+            switch (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+            case "registered", "available":     self = .available
+            case "unregistered", "unavailable": self = .unavailable
+            case "pending":                     self = .pending
+            default:                            return nil
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .available:   return "Available"
+            case .unavailable: return "Unavailable"
+            case .pending:     return "Pending"
+            }
         }
     }
 

@@ -117,15 +117,15 @@ import NetworkService
         #expect(!raw.contains("\"withdrewReason\":\"\""))
     }
 
-    /// `IsPresent` is true for the two real attendance outcomes and false for the two
-    /// administrative exclusions. These four codes are the full ATTDSTATUS set.
+    /// `IsPresent` is true for every outcome recorded against an expected participant and
+    /// false only for the administrative waiver. These four codes are the full ATTDSTATUS set.
     @Test(arguments: [
         ("ATTD", true),              // Attended
         ("NOSHOWNCOSTAPPL", true),   // Absent
-        ("WDLNCOSTAPPL", false),     // Withdrew
+        ("WDLNCOSTAPPL", true),      // Withdrew
         ("WAIVER", false)            // Waived
     ])
-    func isPresentIsTrueForAttendedAndAbsent(code: String, expected: Bool) throws {
+    func isPresentIsTrueForAttendedAbsentAndWithdrew(code: String, expected: Bool) throws {
         let object = try encodeToObject(markItem(statusCode: code))
 
         #expect(object["IsPresent"] as? Bool == expected)

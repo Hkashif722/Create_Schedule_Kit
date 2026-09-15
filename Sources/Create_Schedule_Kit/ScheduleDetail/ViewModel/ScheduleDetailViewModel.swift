@@ -63,9 +63,14 @@ extension ScheduleDetailViewModel {
         )
     }
 
-    var coordinatorText: String {
-        ScheduleListDataModel.Schedule.coordinatorText(
-            contactPersonName: details?.contactPersonName ?? schedule.contactPersonName
+    /// Every trainer on the schedule. `GetScheduleDetailsByID` carries the full list; until
+    /// it lands (or when it carries none) the tapped list row's single trainer stands in.
+    var trainers: [ScheduleDetailDataModel.TrainerDisplay] {
+        ScheduleDetailDataModel.TrainerDisplay.list(
+            from: details?.trainerList,
+            scheduleTrainerType: details?.trainerType ?? schedule.trainerType,
+            fallbackName: details?.academyTrainerName ?? schedule.academyTrainerName,
+            fallbackType: details?.trainerType ?? schedule.trainerType
         )
     }
 }
@@ -230,12 +235,6 @@ extension ScheduleDetailViewModel {
         )
     }
 
-    /// The API wants the AES-encrypted user id, but the list returns only the numeric one
-    /// (`userId` there is a plain login name), so it is encrypted in-package.
-    private func encryptedUserId(for nominee: Nominee) -> String {
-        EncryptDecryptUtility.shared.newEncryptValueString(valueStr: "\(nominee.id)")
-    }
-
     /// Removes a nominee from the schedule. This endpoint answers with an empty body,
     /// so anything that decodes without throwing — including `noData` — counts as success.
     @MainActor
@@ -245,7 +244,9 @@ extension ScheduleDetailViewModel {
             scheduleID: schedule.id,
             courseId: schedule.courseID ?? 0,
             moduleId: schedule.moduleId ?? 0,
-            userIdEncrypted: encryptedUserId(for: nominee)
+            // The row's numeric id, unencrypted — see `DeleteNominationPayload`. The list's
+            // own `userId` is a login name ("anu"), which this endpoint does not accept.
+            userId: "\(nominee.id)"
         )
         do {
             _ = try await ApiService.shared.requestPostHeader(

@@ -14,21 +14,26 @@ struct AttendanceUserRowView: View {
     let user: AttendanceDataModel.AttendanceUser
     let isSelected: Bool
     let canDelete: Bool
+    /// `false` on the read-only Attendees screen: no checkbox, and the row does not respond
+    /// to a tap. Defaulted so the bulk-mark call site is unchanged.
+    var isSelectable: Bool = true
     let onTap: () -> Void
     let onView: () -> Void
     let onDelete: () -> Void
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            Button(action: onTap) { checkbox }
-                .buttonStyle(.plain)
+            if isSelectable {
+                Button(action: onTap) { checkbox }
+                    .buttonStyle(.plain)
+            }
             avatar
             details
             Spacer(minLength: 8)
             actionButtons
         }
-        .padding(.horizontal)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
         .contentShape(Rectangle())
     }
 
@@ -53,10 +58,10 @@ struct AttendanceUserRowView: View {
     private var avatar: some View {
         Circle()
             .fill(avatarColor.opacity(0.25))
-            .frame(width: 46, height: 46)
+            .frame(width: 42, height: 42)
             .overlay(
                 Text(user.initials)
-                    .font(.system(size: 15, weight: .bold))
+                    .font(.system(size: 14, weight: .bold))
                     .foregroundColor(avatarColor)
             )
     }
@@ -92,8 +97,10 @@ struct AttendanceUserRowView: View {
         }
     }
 
+    /// Side by side, not stacked: two 40pt buttons in a column set the row's height and left
+    /// a card mostly empty around one attendee.
     private var actionButtons: some View {
-        VStack(spacing: 8) {
+        HStack(spacing: 8) {
             iconButton(systemName: "eye", tint: ColorUtility.primaryColor, action: onView)
             if canDelete {
                 iconButton(systemName: "trash", tint: .red, action: onDelete)
@@ -106,7 +113,7 @@ struct AttendanceUserRowView: View {
             Image(systemName: systemName)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(tint)
-                .frame(width: 40, height: 40)
+                .frame(width: 36, height: 36)
                 .background(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(tint.opacity(0.12))

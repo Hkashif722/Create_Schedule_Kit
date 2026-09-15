@@ -235,7 +235,8 @@ enum CreateScheduleWizardDataModel {
             try c.encodeNil(forKey: .modifiedBy)
             try c.encode(timezone, forKey: .timezone)
             try c.encode(isWebinar, forKey: .isWebinar)
-            if isWebinar {
+           
+            if isWebinar, !carriesClientMeetingDetails {
                 try c.encode(webinarAccount, forKey: .webinarAccount)
             }
         }
@@ -256,10 +257,10 @@ extension CreateScheduleWizardDataModel.Payload {
             return DM.TrainerDTO(
                 academyTrainerID: Int(decryptedId) ?? 0,
                 academyTrainerName: trainer.name,
-                trainerType: draft.trainerType.apiValue,
-                nameUserId: trainer.nameUserId ?? trainer.name,
-                emailID: trainer.emailId ?? "",
-                trainerEmail: trainer.emailId ?? ""
+                trainerType: draft.apiTrainerType(for: trainer),
+                nameUserId: draft.apiTrainerNameUserId(for: trainer),
+                emailID: ScheduleDraft.apiTrainerEmail(trainer.emailId),
+                trainerEmail: ScheduleDraft.apiTrainerEmail(trainer.emailId)
             )
         }
 
@@ -297,15 +298,15 @@ extension CreateScheduleWizardDataModel.Payload {
             courseID: draft.course?.id ?? 0,
             tags: draft.tags.map { DM.TagDTO(tagId: $0.id, tag: $0.tag ?? "") },
             trainerType: draft.trainerType.apiValue,
-            academyAgencyId: draft.academy?.id,
-            academyAgencyName: draft.academy?.title,
+            academyAgencyId: draft.apiAcademyAgencyID,
+            academyAgencyName: draft.apiAcademyAgencyName,
             city: draft.trainingPlace?.cityname,
             seatCapacity: draft.trainingPlace?.accommodationCapacity ?? "",
             scheduleCapacity: draft.trainingPlace?.accommodationCapacity ?? "",
             postalAddress: draft.trainingPlace?.postalAddress,
             placeID: draft.trainingPlace?.id,
             placeName: draft.trainingPlace?.placeName,
-            placeType: "Internal",
+            placeType: draft.placeType.apiValue,
             startDate: draft.startDate.map(Self.isoDate) ?? "",
             endDate: draft.endDate.map(Self.isoDate) ?? "",
             startTime: draft.startTime.map(Self.apiTime) ?? "",
@@ -317,8 +318,8 @@ extension CreateScheduleWizardDataModel.Payload {
             feedbackId: feedbackId,
             timezone: draft.timezone?.value ?? "",
             isWebinar: isWebinar,
-            webinarType: isWebinar ? draft.webinarType?.rawValue : nil,
-            webinarAccount: isWebinar ? draft.credential?.first?.teamsEmail : nil,
+            webinarType: isWebinar ? draft.webinarType?.apiValue : nil,
+            webinarAccount: isWebinar ? draft.apiWebinarAccount : nil,
             teamsScheduleDetails: teamsScheduleDetails
         )
     }

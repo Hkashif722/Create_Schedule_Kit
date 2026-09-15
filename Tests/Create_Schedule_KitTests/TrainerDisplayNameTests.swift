@@ -69,4 +69,26 @@ import Testing
         #expect(stamped.name == "Chetan Wadil")
         #expect(stamped.displayNameWithType == "Chetan Wadil (Consultant)")
     }
+
+    /// `nameUserId` arrives from the server with the type already appended
+    /// ("kashif-kashif (External)"), so composing the suffix again printed it twice.
+    @Test func doesNotRepeatATypeTheNameAlreadyCarries() {
+        let row = trainer(userType: "External", nameUserId: "kashif-kashif (External)")
+        #expect(row.displayNameWithType == "kashif-kashif (External)")
+    }
+
+    @Test func aStaleTypeInTheNameIsReplacedByTheRealOne() {
+        let row = trainer(userType: "Internal", nameUserId: "kashif-kashif (External)")
+        #expect(row.displayNameWithType == "kashif-kashif (Internal)")
+    }
+
+    @Test func aTrailingSuffixThatIsNotATypeSurvives() {
+        let row = trainer(userType: "Internal", nameUserId: "Chetan Wadil (chetan.w)")
+        #expect(row.displayNameWithType == "Chetan Wadil (chetan.w) (Internal)")
+    }
+
+    @Test func theTypeSuffixIsDroppedWhenNoTypeIsKnown() {
+        let row = trainer(userType: nil, nameUserId: "kashif-kashif (External)")
+        #expect(row.displayNameWithType == "kashif-kashif")
+    }
 }

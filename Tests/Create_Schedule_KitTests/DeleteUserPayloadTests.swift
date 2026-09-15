@@ -67,12 +67,14 @@ import SwiftUIUtilities
         (5, "users as attendance statuses are")
     ])
     func missingStatusMessagePluralizesOnSelectionCount(selected: Int, fragment: String) {
-        let viewModel = AttendanceViewModel(
+        // Selection and this copy live on the shared list view model since the flow split.
+        let viewModel = AttendanceUsersViewModel(
             router: RouterEnvironmentKey.defaultValue,
             navModel: .init(
+                mode: .bulkMark,
                 scheduleID: 3787, courseID: 56288, moduleID: 42182,
-                courseName: "Course", moduleName: "Module",
-                scheduleCode: "SC8432", dateRangeText: "Aug 17, 2026"
+                scheduleCode: "SC8432", attendanceDate: Date(),
+                onAttendanceChanged: {}
             )
         )
         (1...max(selected, 1)).prefix(selected).forEach {
@@ -98,31 +100,38 @@ import SwiftUIUtilities
 
     // MARK: - Schedule Detail
 
+    /// Verbatim from the working request:
+    /// `{"scheduleID":4458,"courseId":59458,"moduleId":46516,"UserIdEncrypted":"12306"}`
     @Test func deleteNominationPayloadMatchesServerKeys() throws {
         let object = try encodeToObject(
             ScheduleDetailDataModel.DeleteNominationPayload(
-                scheduleID: 3893,
-                courseId: 35038,
-                moduleId: 23050,
-                userIdEncrypted: "ZEvFYe8WFCkqdvwmYOQIaw=="
+                scheduleID: 4458,
+                courseId: 59458,
+                moduleId: 46516,
+                userId: "12306"
             )
         )
 
         #expect(object.count == 4)
-        #expect(object["scheduleID"] as? Int == 3893)
-        #expect(object["courseId"] as? Int == 35038)
-        #expect(object["moduleId"] as? Int == 23050)
-        // The encrypted id is opaque and must survive verbatim.
-        #expect(object["UserIdEncrypted"] as? String == "ZEvFYe8WFCkqdvwmYOQIaw==")
+        #expect(object["scheduleID"] as? Int == 4458)
+        #expect(object["courseId"] as? Int == 59458)
+        #expect(object["moduleId"] as? Int == 46516)
+        #expect(object["UserIdEncrypted"] as? String == "12306")
     }
 
-    @Test func encryptedUserIdIsBuiltFromTheNumericRowId() throws {
-        // The list returns `userId` as a plain login name ("anu"), so the encrypted value
-        // sent to DeleteUserNomination is derived from the numeric row id instead.
-        let encrypted = EncryptDecryptUtility.shared.newEncryptValueString(valueStr: "11892")
-        #expect(!encrypted.isEmpty)
-        #expect(encrypted != "11892")
-        #expect(encrypted != "anu")
-        #expect(EncryptDecryptUtility.shared.newDecryptString(responseStr: encrypted) == "11892")
+    /// `UserIdEncrypted` names the field, not its contents: the value is the nominee row's
+    /// plain numeric id. An AES value there matches no user, and the endpoint's empty
+    /// response makes that no-op look like a success.
+    @Test func theNominationDeleteIdIsNotEncrypted() throws {
+        let object = try encodeToObject(
+            ScheduleDetailDataModel.DeleteNominationPayload(
+                scheduleID: 4458, courseId: 59458, moduleId: 46516, userId: "12306"
+            )
+        )
+        let sent = try #require(object["UserIdEncrypted"] as? String)
+
+        #expect(sent == "12306")
+        #expect(Int(sent) == 12306)
+        #expect(sent != EncryptDecryptUtility.shared.newEncryptValueString(valueStr: "12306"))
     }
 }

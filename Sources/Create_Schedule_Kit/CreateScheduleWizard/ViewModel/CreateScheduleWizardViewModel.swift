@@ -123,9 +123,7 @@ extension CreateScheduleWizardViewModel {
         loadingState = .loading(message: "Creating schedule...")
         do {
             let payload = CreateScheduleWizardDataModel.Payload(draft: draft)
-            // `PostWithMeeting` asks the server to mint the meeting. When the body already
-            // carries one — a typed Teams link or a generated provider meeting — the plain
-            // route is the one that accepts it, matching the web client.
+           
             let response: CreateScheduleWizardDataModel.CreateScheduleResponse
             if payload.carriesClientMeetingDetails {
                 response = try await ApiService.shared.requestPostHeader(
@@ -191,12 +189,40 @@ extension CreateScheduleWizardViewModel {
 
             editBase = details
             draft.apply(details: details, modules: modules, timezones: timezones)
+            await hydrateTeamsMeeting(details: details)
             isHydrated = true
             loadingState = .none
         } catch {
             // Without the base schedule the editor is unusable — surface and leave.
             handleAPIError(error, resetLoadingState: true, showToast: true)
             router.dismissScreen()
+        }
+    }
+
+    /// Fills the Teams link from the schedule's stored meeting.
+    ///
+    /// `GetScheduleDetailsByID` answers `teamsScheduleDetails: null`, so the link has to be
+    /// looked up by schedule code. Teams-only — `lookupCode` owns that rule. Non-fatal: a
+    /// failure leaves whatever the details response carried, and the rest of the editor
+    /// still works.
+    @MainActor
+    private func hydrateTeamsMeeting(details: EditScheduleDataModel.ScheduleDetailsResponse) async {
+        guard let code = EditScheduleDataModel.GetTeamsMeetingByScheduleCodeRequest.lookupCode(
+            webinarType: draft.webinarType,
+            scheduleCode: details.scheduleCode
+        ) else { return }
+
+        guard let meeting = try? await ApiService.shared.requestPostHeader(
+            type: JSONValue.self,
+            model: EditScheduleDataModel.GetTeamsMeetingByScheduleCodeRequest(),
+            payload: EditScheduleDataModel.GetTeamsMeetingByScheduleCodeRequest.Payload(code: code)
+        ) else { return }
+
+        // Kept whole rather than modelled field by field: the update echoes it back, and
+        // every key the server sent has to survive the round trip.
+        draft.teamsMeeting = meeting
+        if let link = meeting.firstString(forKey: "joinUrl"), !link.isEmpty {
+            draft.teamsLink = link
         }
     }
 

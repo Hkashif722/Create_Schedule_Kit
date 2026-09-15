@@ -11,7 +11,9 @@ import SwiftUIUtilities
 struct TrainerCardView: View {
 
     let name: String
-    let trainerType: String
+    /// Nil when the server sends no type for this trainer — the badge is then dropped
+    /// rather than guessed.
+    let trainerType: String?
 
     var body: some View {
         HStack(spacing: 14) {
@@ -24,16 +26,25 @@ struct TrainerCardView: View {
                         .foregroundColor(ColorUtility.primaryColor)
                 )
             VStack(alignment: .leading, spacing: 3) {
-                Text(name).font(.system(size: 17, weight: .bold)).foregroundColor(.primary)
-                Text("Trainer · \(trainerType)").font(.system(size: 13)).foregroundColor(.secondary)
+                Text(name)
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(.primary)
+                    .lineLimit(2)
+                Text(trainerType.map { "Trainer · \($0)" } ?? "Trainer")
+                    .font(.system(size: 13))
+                    .foregroundColor(.secondary)
             }
             Spacer(minLength: 8)
-            Text(trainerType)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(.green)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Capsule().fill(Color.green.opacity(0.15)))
+            if let trainerType {
+                Text(trainerType)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.green)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Capsule().fill(Color.green.opacity(0.15)))
+            }
         }
         .padding(16)
         .background(
@@ -51,6 +62,9 @@ struct TrainerCardView: View {
 }
 
 #Preview {
-    TrainerCardView(name: "Kashif User", trainerType: "Internal")
-        .padding()
+    VStack(spacing: 10) {
+        TrainerCardView(name: "Kashif User", trainerType: "Internal")
+        TrainerCardView(name: "Chetan Wade II-cw", trainerType: nil)
+    }
+    .padding()
 }

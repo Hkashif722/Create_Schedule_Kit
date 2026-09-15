@@ -36,8 +36,6 @@ struct ScheduleUsersView: View {
             content
         }
         .background(Color.scheduleBackground.ignoresSafeArea())
-        // Same custom bar as Schedule Details, which pushes this screen: that screen hides
-        // the system bar, and on iOS 15 the hidden state carries over to what it pushes.
         .navigationBarHidden(true)
         .loadingOverlayViewPkg(state: viewModel.loadingState)
         .toastViewPkg(toast: $viewModel.toast)

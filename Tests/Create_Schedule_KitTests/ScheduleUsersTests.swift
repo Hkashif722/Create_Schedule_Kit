@@ -130,18 +130,53 @@ import NetworkService
         #expect(sunny.initials == "SR")
         #expect(sunny.emailId == "sunny.rasal@dummy.com")
         #expect(sunny.mobileNumber == "xxxxxxxxxx")
-        // `status: "True"` is an accepted nomination.
-        #expect(sunny.isConfirmed)
-        #expect(sunny.statusText == "Confirmed")
-        // Not yet accepted — the pill the screen shows.
-        #expect(users[1].isConfirmed == false)
+        // Mapped from `trainingRequestStatus`; the `status` flag is not consulted.
+        #expect(sunny.statusText == "Pending")
         #expect(users[1].statusText == "Pending")
     }
 
-    @Test func aRowWithNoRequestStatusStillReadsAsPending() throws {
+    /// The web's Status column mapping: two server values collapse onto Available and two
+    /// onto Unavailable, Pending stays Pending, and any other value leaves the cell blank.
+    /// `status` is never consulted — a `"True"` row still reads Pending here.
+    @Test(arguments: [
+        ("Registered", "Available"),
+        ("Available", "Available"),
+        ("Unregistered", "Unavailable"),
+        ("Unavailable", "Unavailable"),
+        ("Pending", "Pending"),
+        // Not rendered by the column.
+        ("Confirmed", ""),
+        ("Rejected", "")
+    ])
+    func theStatusPillFollowsTheWebsColumnMapping(
+        requestStatus: String,
+        shown: String
+    ) throws {
+        let json = """
+        {"id":1,"userId":"kim","userName":"Kim","status":"True",
+         "trainingRequestStatus":"\(requestStatus)"}
+        """
+        let user = try JSONDecoder().decode(DM.ScheduleUser.self, from: Data(json.utf8))
+
+        #expect(user.statusText == shown)
+        #expect((user.statusDisplay == nil) == shown.isEmpty)
+    }
+
+    /// The web matches these strings case-sensitively; a differently-cased value from the
+    /// server would blank the cell there but still maps here.
+    @Test func theMappingToleratesCasingAndPadding() {
+        #expect(DM.RequestStatusDisplay(trainingRequestStatus: "  registered ")?.title == "Available")
+        #expect(DM.RequestStatusDisplay(trainingRequestStatus: "UNAVAILABLE")?.title == "Unavailable")
+        #expect(DM.RequestStatusDisplay(trainingRequestStatus: "")  == nil)
+        #expect(DM.RequestStatusDisplay(trainingRequestStatus: nil) == nil)
+    }
+
+    /// A row with no `trainingRequestStatus` has no status to show — the pill stays empty
+    /// rather than inventing "Pending".
+    @Test func aRowWithNoRequestStatusHasNoStatusText() throws {
         let json = #"{"id":1,"userId":"kim","userName":"Kim","status":"False"}"#
         let user = try JSONDecoder().decode(DM.ScheduleUser.self, from: Data(json.utf8))
-        #expect(user.statusText == "Pending")
+        #expect(user.statusText.isEmpty)
         #expect(user.initials == "K")
     }
 

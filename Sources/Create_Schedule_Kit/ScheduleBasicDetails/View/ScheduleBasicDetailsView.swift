@@ -308,15 +308,15 @@ private extension ScheduleBasicDetailsView {
             TimePickerTextField(
                 router: router,
                 title: "Start time",
-                timeFormat: ScheduleDateRules.timeFormat,
-                initialTimeString: viewModel.startTime,
+                timeFormat: ScheduleDateRules.displayTimeFormat,
+                initialTimeString: viewModel.startTimeDisplay,
                 onTimeSelected: { viewModel.didSelectStartTime($0) }
             )
             TimePickerTextField(
                 router: router,
                 title: "End time",
-                timeFormat: ScheduleDateRules.timeFormat,
-                initialTimeString: viewModel.endTime,
+                timeFormat: ScheduleDateRules.displayTimeFormat,
+                initialTimeString: viewModel.endTimeDisplay,
                 onTimeSelected: { viewModel.didSelectEndTime($0) }
             )
             // The picker commits the tapped time to its own state before handing it over,

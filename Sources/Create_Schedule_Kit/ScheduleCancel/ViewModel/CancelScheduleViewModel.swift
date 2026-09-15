@@ -118,22 +118,17 @@ extension CancelScheduleViewModel {
         )) ?? false
     }
 
-    /// The API wants the AES-encrypted schedule id, but the list carries only the numeric one,
-    /// so it is encrypted in-package — same contract as the nominee-delete call.
-    private var encryptedScheduleID: String {
-        EncryptDecryptUtility.shared.newEncryptValueString(valueStr: "\(navModel.scheduleID)")
+    var cancelPayload: CancelScheduleDataModel.CancelPayload {
+        CancelScheduleDataModel.CancelPayload(
+            scheduleID: "\(navModel.scheduleID)",
+            reason: trimmedReason
+        )
     }
 
-    /// The happy path is an empty body, which `ApiService` surfaces as `APIError.noData` — the one
-    /// error that means success here. When a body *is* present it is the shared status envelope,
-    /// and a non-200 `statusCode` is a refusal even though the transport succeeded.
     @MainActor
     private func submit() async {
         loadingState = .loading(title: "Cancelling", message: "Please wait.")
-        let payload = CancelScheduleDataModel.CancelPayload(
-            scheduleID: encryptedScheduleID,
-            reason: trimmedReason
-        )
+        let payload = cancelPayload
         do {
             let response = try await ApiService.shared.requestPostHeader(
                 type: CancelScheduleDataModel.CancelResponse.self,

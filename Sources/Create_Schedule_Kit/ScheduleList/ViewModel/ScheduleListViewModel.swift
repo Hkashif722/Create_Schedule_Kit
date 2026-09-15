@@ -259,28 +259,21 @@ extension ScheduleListViewModel {
         )
     }
 
-    /// A schedule can only be cancelled up to and including its registration end date. Past that
-    /// the action is refused outright — the icon stays on the card either way, so the reason is
-    /// explained with a toast rather than by silently hiding it.
+    /// A schedule can normally only be cancelled while it is still Upcoming and inside its
+    /// registration window; past either point the action is refused, explained by a toast
+    /// (the icon stays on the card either way).
     ///
-    /// Deliberately NOT softened by the org-level `Enable_PastScheduleCancel` setting: the
-    /// registration-end rule is absolute.
+    /// The org-level `Enable_PastScheduleCancel` setting lifts the two date-based refusals —
+    /// see `ScheduleCancelPolicy`, which owns the whole decision so it can be tested with
+    /// the flag both ways.
     @MainActor
     func didTapCancel(_ schedule: Schedule) {
         guard permissions.canCancelSchedule else { return }
 
-        // The card already hides Cancel for a cancelled schedule; this guards the case where the
-        // list is showing a stale row.
-        guard !schedule.isCancelled else {
-            toast = Toast(style: .info, message: "This schedule is already cancelled.")
-            return
-        }
-
-        guard schedule.isWithinRegistrationWindow else {
-            toast = Toast(
-                style: .error,
-                message: "Training cannot be canceled, as training already started."
-            )
+        // Refusals guard the case where the list is showing a stale row; the card already
+        // hides Cancel for a cancelled schedule.
+        if let refusal = ScheduleCancelPolicy.refusal(for: schedule, allowsPastCancel: canCancelPastSchedule) {
+            toast = Toast(style: refusal.isInformational ? .info : .error, message: refusal.message)
             return
         }
 
@@ -479,6 +472,8 @@ extension ScheduleListViewModel {
     }
 
     @MainActor
+    /// `Enable_PastScheduleCancel` — lets this org cancel schedules whose time has passed.
+    /// Fails closed: a config outage leaves the stricter rules in place.
     private func fetchPastCancelFlag() async {
         let response = try? await ApiService.shared.requestGetHeader(
             type: ScheduleListDataModel.ConfigValueResponse.self,

@@ -19,6 +19,9 @@ public struct CreateScheduleKitConfig: Sendable {
     /// The logged-in user's role code, e.g. "ET" for an external trainer. Drives what the
     /// package lets them do — see `SchedulePermissions`.
     let userRole: String
+    /// The logged-in user's mobile number, posted as `MobileNumber` when a QR scan marks
+    /// attendance. Empty when the host has nothing to supply.
+    let userMobileNumber: String
     let tokenProvider: @Sendable () -> String?
 
     public init(
@@ -33,6 +36,7 @@ public struct CreateScheduleKitConfig: Sendable {
         userName: String,
         userId: String,
         userRole: String,
+        userMobileNumber: String = "",
         tokenProvider: @escaping @Sendable () -> String?
     ) {
         APIConst.baseURL = baseURL
@@ -46,6 +50,7 @@ public struct CreateScheduleKitConfig: Sendable {
         self.userName = userName
         self.userId = userId
         self.userRole = userRole
+        self.userMobileNumber = userMobileNumber
         self.tokenProvider = tokenProvider
     }
 }

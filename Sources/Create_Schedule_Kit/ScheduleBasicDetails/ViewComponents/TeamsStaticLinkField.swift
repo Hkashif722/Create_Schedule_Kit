@@ -49,10 +49,15 @@ struct TeamsStaticLinkField: View {
         }
     }
 
-    /// Matches `CSTextField`'s neutral/emphasized pair, plus the red state it lacks.
+    /// Neutral until something is typed, then the emphasized border of the dropdowns
+    /// above it, and red only for an invalid link.
+    ///
+    /// Deliberately not `CSTextField`'s filled colour: that is `ColorUtility.primaryColor`
+    /// — the brand red — which made a perfectly good link look rejected, since this is the
+    /// only field on the step that also has a red error state.
     private var borderColor: Color {
         if errorMessage != nil { return .red }
-        return text.isEmpty ? Color(.systemGray4) : ColorUtility.primaryColor
+        return text.isEmpty ? Color(.systemGray4) : ColorUtility.deepBlue
     }
 }
 

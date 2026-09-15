@@ -32,6 +32,37 @@ enum EditScheduleDataModel {
         var headers: [String: String]? { nil }
     }
 
+    /// POST — the schedule's stored Teams meeting, looked up by schedule code. Answers an
+    /// array of meeting rows; `GetScheduleDetailsByID` leaves `teamsScheduleDetails` null,
+    /// so this is where the hand-entered link actually comes from in edit mode.
+    struct GetTeamsMeetingByScheduleCodeRequest: EndpointModel {
+        var path: String {
+            [APIConst.courseBaseUrl, APIConst.versionAPI, APIConst.iltSchedule, APIConst.getTeamsMeetingByScheduleCode]
+                .joined(separator: "/")
+        }
+        var method: HTTPMethod { .post }
+        var headers: [String: String]? { nil }
+
+        struct Payload: Encodable {
+            let code: String
+
+            enum CodingKeys: String, CodingKey {
+                case code = "Code"
+            }
+        }
+
+        /// The code to look up, or `nil` when this schedule must not be looked up at all.
+        ///
+        /// Teams is the only provider with a hand-entered link, so it is the only one this
+        /// route is called for — every other provider's meeting details are the server's
+        /// own and are echoed untouched. A schedule with no code cannot be looked up.
+        static func lookupCode(webinarType: WebinarType?, scheduleCode: String?) -> String? {
+            guard webinarType == .teams else { return nil }
+            let code = (scheduleCode ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            return code.isEmpty ? nil : code
+        }
+    }
+
     /// POST update schedule (with webinar/meeting details). Response envelope is the
     /// same as create — reuse `CreateScheduleWizardDataModel.CreateScheduleResponse`.
     struct UpdateWithMeetingRequest: EndpointModel {
@@ -208,8 +239,12 @@ enum EditScheduleDataModel {
             try c.encode(draft.timezone?.value ?? base.timezone, forKey: .timezone)
 
             // Venue.
-            try c.encode(draft.academy?.id ?? base.academyAgencyID, forKey: .academyAgencyID)
-            try c.encode(draft.academy?.title ?? base.academyAgencyName, forKey: .academyAgencyName)
+            // An external venue has no academy id, so the base's id must not leak through.
+            try c.encode(
+                draft.placeType == .internal ? (draft.apiAcademyAgencyID ?? base.academyAgencyID) : nil,
+                forKey: .academyAgencyID
+            )
+            try c.encode(draft.apiAcademyAgencyName ?? base.academyAgencyName, forKey: .academyAgencyName)
             let place = draft.trainingPlace
             try c.encode(place?.id ?? base.placeID, forKey: .placeID)
             try c.encode(place?.placeName ?? base.placeName, forKey: .placeName)
@@ -218,7 +253,7 @@ enum EditScheduleDataModel {
             try c.encode(seatCapacity, forKey: .seatCapacity)
             try c.encode(seatCapacity.flatMap(Int.init) ?? base.scheduleCapacity, forKey: .scheduleCapacity)
             try c.encode(place?.postalAddress ?? base.postalAddress, forKey: .postalAddress)
-            try c.encode(base.placeType, forKey: .placeType)
+            try c.encode(draft.placeType.apiValue, forKey: .placeType)
 
             // Trainers.
             let trainers = trainerItems()
@@ -277,7 +312,7 @@ enum EditScheduleDataModel {
             try c.encode(base.currency ?? "", forKey: .currency)
             try c.encode(base.userName, forKey: .userName)
             try c.encode(base.userCreated ?? .null, forKey: .userCreated)
-            try c.encode(base.teamsScheduleDetails ?? .null, forKey: .teamsScheduleDetails)
+            try c.encode(teamsScheduleDetails(), forKey: .teamsScheduleDetails)
             try c.encode(base.zoomScheduleDetails ?? .null, forKey: .zoomScheduleDetails)
             try c.encode(base.googleMeetDetails ?? .null, forKey: .googleMeetDetails)
             try c.encode(base.purpose, forKey: .purpose)
@@ -289,6 +324,40 @@ enum EditScheduleDataModel {
             try c.encode(base.autoStartRecording ?? false, forKey: .autoStartRecording)
             try c.encode(base.allowStartStopRecording ?? false, forKey: .allowStartStopRecording)
             try c.encode(base.requestApproval, forKey: .requestApproval)
+        }
+
+        /// The meeting details to send, with the hand-entered Teams link overlaid.
+        ///
+        /// The link is editable in edit mode (`ATPTLWCS`), so the fetched row is echoed
+        /// with only its `joinUrl` replaced — its id, `meetingId` and `iCalUId` stay put,
+        /// so the server updates the meeting it already has instead of gaining a second
+        /// one. A schedule with no details row yet gets a fresh entry carrying its own
+        /// ids. With no link typed, or for any other provider, the fetched value is
+        /// echoed untouched exactly as before.
+        private func teamsScheduleDetails() -> JSONValue {
+            // The row fetched by schedule code when there is one: it carries the meeting's
+            // real id / meetingId / iCalUId, which the details response does not.
+            let echoed = draft.teamsMeeting ?? base.teamsScheduleDetails ?? .null
+            guard draft.webinarType == .teams else { return echoed }
+
+            let link = WebinarLinkRules.normalizedLink(draft.teamsLink ?? "")
+            guard !link.isEmpty else { return echoed }
+
+            if let overlaid = echoed.settingFirst("joinUrl", to: .string(link)) { return overlaid }
+
+            return .array([
+                .object([
+                    "id": .number(0),
+                    "courseID": .number(Double(base.courseID ?? 0)),
+                    "scheduleID": .number(Double(base.id)),
+                    "meetingId": .null,
+                    "startTime": .null,
+                    "endTime": .null,
+                    "iCalUId": .null,
+                    "joinUrl": .string(link),
+                    "userWebinarId": .number(0)
+                ])
+            ])
         }
 
         /// Draft trainers mapped for the update body. Trainers that already exist on the
@@ -309,10 +378,10 @@ enum EditScheduleDataModel {
                 return TrainerItem(
                     academyTrainerID: trainerID,
                     academyTrainerName: trainer.name,
-                    trainerType: draft.trainerType.apiValue,
-                    emailID: trainer.emailId,
-                    trainerEmail: trainer.emailId,
-                    nameUserId: trainer.nameUserId ?? trainer.name
+                    trainerType: draft.apiTrainerType(for: trainer),
+                    emailID: ScheduleDraft.apiTrainerEmail(trainer.emailId),
+                    trainerEmail: ScheduleDraft.apiTrainerEmail(trainer.emailId),
+                    nameUserId: draft.apiTrainerNameUserId(for: trainer)
                 )
             }
         }
