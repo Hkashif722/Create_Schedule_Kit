@@ -60,7 +60,7 @@ struct CreateTrainerFormField: View {
 
     private var borderColor: Color {
         if errorMessage != nil { return .red }
-        return text.isEmpty ? Color(.systemGray4) : ColorUtility.primaryColor
+        return text.isEmpty ? Color(.systemGray4) : CSTheme.primaryColor
     }
 }
 

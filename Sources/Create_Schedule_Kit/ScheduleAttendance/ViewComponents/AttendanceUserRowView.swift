@@ -41,10 +41,10 @@ struct AttendanceUserRowView: View {
 
     private var checkbox: some View {
         RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .strokeBorder(isSelected ? ColorUtility.primaryColor : Color(.systemGray3), lineWidth: 1.8)
+            .strokeBorder(isSelected ? CSTheme.primaryColor : Color(.systemGray3), lineWidth: 1.8)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(isSelected ? ColorUtility.primaryColor : Color.clear)
+                    .fill(isSelected ? CSTheme.primaryColor : Color.clear)
             )
             .frame(width: 24, height: 24)
             .overlay(
@@ -101,7 +101,7 @@ struct AttendanceUserRowView: View {
     /// a card mostly empty around one attendee.
     private var actionButtons: some View {
         HStack(spacing: 8) {
-            iconButton(systemName: "eye", tint: ColorUtility.primaryColor, action: onView)
+            iconButton(systemName: "eye", tint: CSTheme.primaryColor, action: onView)
             if canDelete {
                 iconButton(systemName: "trash", tint: .red, action: onDelete)
             }
@@ -138,7 +138,7 @@ struct AttendanceUserRowView: View {
         switch (user.overAllStatus ?? "").lowercased() {
         case "completed":  return .green
         case "notstarted": return .orange
-        case "inprogress": return ColorUtility.primaryColor
+        case "inprogress": return CSTheme.primaryColor
         default:           return .secondary
         }
     }

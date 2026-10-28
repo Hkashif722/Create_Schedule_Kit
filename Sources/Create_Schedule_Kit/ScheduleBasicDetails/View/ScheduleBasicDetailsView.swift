@@ -47,7 +47,7 @@ private extension ScheduleBasicDetailsView {
     var basicInfoCard: some View {
         CSSectionCard(
             icon: "doc.text",
-            iconColor: ColorUtility.primaryColor,
+            iconColor: CSTheme.primaryColor,
             title: "Basic information",
             subtitle: "Schedule identity & course"
         ) {
@@ -366,7 +366,7 @@ private extension ScheduleBasicDetailsView {
                 set: { viewModel.toggleHolidays($0) }
             ))
             .labelsHidden()
-            .tint(ColorUtility.primaryColor)
+            .tint(CSTheme.primaryColor)
         }
         .padding(16)
         .background(Color(.systemBackground))

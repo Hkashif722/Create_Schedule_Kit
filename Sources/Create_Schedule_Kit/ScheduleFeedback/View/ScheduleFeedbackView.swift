@@ -106,7 +106,7 @@ struct ScheduleFeedbackView: View {
                     Text("Change feedback module")
                 }
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(ColorUtility.primaryColor)
+                .foregroundColor(CSTheme.primaryColor)
                 .frame(maxWidth: .infinity)
                 .frame(height: 44)
             }

@@ -22,8 +22,8 @@ struct CSPrimaryButton: View {
             buttonLabel(title: title, systemImage: systemImage)
                 .frame(maxWidth: .infinity)
                 .frame(height: 54)
-                .background(isEnabled ? ColorUtility.primaryColor : ColorUtility.primaryColor.opacity(0.4))
-                .foregroundColor(ColorUtility.primaryColor.getDynamicTextColor)
+                .background(isEnabled ? CSTheme.primaryColor : CSTheme.primaryColor.opacity(0.4))
+                .foregroundColor(CSTheme.primaryColor.getDynamicTextColor)
                 .cornerRadius(14)
         }
         .buttonStyle(.plain)
@@ -42,8 +42,8 @@ struct CSNavButton: View {
             buttonLabel(title: title, systemImage: systemImage, imageTrailing: true)
                 .frame(maxWidth: .infinity)
                 .frame(height: 54)
-                .background(isEnabled ? ColorUtility.secondaryColor : ColorUtility.secondaryColor.opacity(0.4))
-                .foregroundColor(ColorUtility.secondaryColor.getDynamicTextColor)
+                .background(isEnabled ? CSTheme.secondaryColor : CSTheme.secondaryColor.opacity(0.4))
+                .foregroundColor(CSTheme.secondaryColor.getDynamicTextColor)
                 .cornerRadius(14)
         }
         .buttonStyle(.plain)
@@ -61,10 +61,10 @@ struct CSSecondaryButton: View {
             buttonLabel(title: title, systemImage: systemImage)
                 .frame(maxWidth: .infinity)
                 .frame(height: 54)
-                .foregroundColor(ColorUtility.primaryColor)
+                .foregroundColor(CSTheme.primaryColor)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14)
-                        .stroke(ColorUtility.primaryColor, lineWidth: 1.5)
+                        .stroke(CSTheme.primaryColor, lineWidth: 1.5)
                 )
         }
         .buttonStyle(.plain)
@@ -74,7 +74,7 @@ struct CSSecondaryButton: View {
 /// Borderless text action (e.g. "Keep Schedule") — the quiet way out of a destructive sheet.
 struct CSPlainTextButton: View {
     let title: String
-    var tint: Color = ColorUtility.primaryColor
+    var tint: Color = CSTheme.primaryColor
     let action: () -> Void
 
     var body: some View {

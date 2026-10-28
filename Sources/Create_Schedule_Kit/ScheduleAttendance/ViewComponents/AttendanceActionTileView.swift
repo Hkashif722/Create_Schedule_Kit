@@ -24,9 +24,9 @@ struct AttendanceActionTileView: View {
             VStack(spacing: 8) {
                 Image(systemName: systemImage)
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(ColorUtility.primaryColor)
+                    .foregroundColor(CSTheme.primaryColor)
                     .frame(width: 34, height: 34)
-                    .background(Circle().fill(ColorUtility.primaryColor.opacity(0.12)))
+                    .background(Circle().fill(CSTheme.primaryColor.opacity(0.12)))
 
                 Text(title)
                     .font(.system(size: 13, weight: .semibold))

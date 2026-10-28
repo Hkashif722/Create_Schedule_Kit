@@ -69,10 +69,10 @@ private extension ScheduleListView {
                             Image(systemName: "plus").font(.system(size: 14, weight: .bold))
                             Text("New").font(.system(size: 15, weight: .semibold))
                         }
-                        .foregroundColor(ColorUtility.primaryColor.getDynamicTextColor)
+                        .foregroundColor(CSTheme.primaryColor.getDynamicTextColor)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
-                        .background(Capsule().fill(ColorUtility.primaryColor))
+                        .background(Capsule().fill(CSTheme.primaryColor))
                     }
                     .buttonStyle(.plain)
                 }

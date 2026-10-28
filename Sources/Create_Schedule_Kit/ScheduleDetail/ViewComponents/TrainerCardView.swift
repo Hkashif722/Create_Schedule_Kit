@@ -18,12 +18,12 @@ struct TrainerCardView: View {
     var body: some View {
         HStack(spacing: 14) {
             Circle()
-                .fill(ColorUtility.primaryColor.opacity(0.15))
+                .fill(CSTheme.primaryColor.opacity(0.15))
                 .frame(width: 52, height: 52)
                 .overlay(
                     Text(initials)
                         .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(ColorUtility.primaryColor)
+                        .foregroundColor(CSTheme.primaryColor)
                 )
             VStack(alignment: .leading, spacing: 3) {
                 Text(name)

@@ -154,10 +154,10 @@ struct FeedbackModulePickerSheet: View {
                 Spacer(minLength: 8)
                 ZStack {
                     Circle()
-                        .strokeBorder(isSelected ? ColorUtility.primaryColor : Color(.systemGray3), lineWidth: 1.8)
+                        .strokeBorder(isSelected ? CSTheme.primaryColor : Color(.systemGray3), lineWidth: 1.8)
                         .frame(width: 22, height: 22)
                     if isSelected {
-                        Circle().fill(ColorUtility.primaryColor).frame(width: 14, height: 14)
+                        Circle().fill(CSTheme.primaryColor).frame(width: 14, height: 14)
                     }
                 }
             }

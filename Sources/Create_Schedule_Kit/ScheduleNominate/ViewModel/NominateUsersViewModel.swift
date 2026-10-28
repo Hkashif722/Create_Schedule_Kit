@@ -125,13 +125,21 @@ extension NominateUsersViewModel {
         searchDebouncer.debounce(text) { [weak self] value in
             guard let self else { return }
             let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty {
-                self.typeaheadResults = []
-                Task { await self.loadInitial() }
-            } else {
-                Task { await self.fetchTypeahead(trimmed) }
+            guard !trimmed.isEmpty else {
+                self.clearSearch()
+                return
             }
+            Task { await self.fetchTypeahead(trimmed) }
         }
+    }
+
+    func clearSearch() {
+        typeaheadResults = []
+        let hadFilter = !searchText.isEmpty || selectedSuggestion != nil
+        searchText = ""
+        selectedSuggestion = nil
+        guard hadFilter else { return }
+        Task { [weak self] in await self?.loadInitial() }
     }
 
     /// Applying a suggestion re-queries the main list scoped to the selected column.
@@ -266,21 +274,22 @@ extension NominateUsersViewModel {
 
 // MARK: - API
 extension NominateUsersViewModel {
-
-    private func usersPayload(page: Int) -> NominateUsersDataModel.UsersPayload {
+    
+    func usersPayload(page: Int) -> NominateUsersDataModel.UsersPayload {
         let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query: String? = trimmed.isEmpty ? nil : trimmed
         return NominateUsersDataModel.UsersPayload(
             scheduleID: scheduleID ?? 0,
             courseId: courseId,
             moduleId: iltModuleId ?? navModel.moduleID,
             page: page,
             pageSize: itemsPerPage,
-            search: selectedColumn?.configuredColumnName,
-            searchText: trimmed.isEmpty ? nil : trimmed,
+            search: query == nil ? nil : selectedColumn?.configuredColumnName,
+            searchText: query,
             type: "Nominate"
         )
     }
-
+    
     @MainActor
     private func fetchBatchwiseFlag() async {
         do {

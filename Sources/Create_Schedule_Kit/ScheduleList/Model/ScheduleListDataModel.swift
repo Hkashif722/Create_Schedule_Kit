@@ -5,7 +5,7 @@
 //  Endpoints + DTOs for the Scheduler landing screen (list of schedules).
 //
 //   • ILTSchedule/GetScheduleData            → [Schedule]  (paginated list)
-//   • ILTSchedule/count/{s}/{st}/{showAll}   → Int         (total count, parallel)
+//   • ILTSchedule/count                      → Int         (total count, parallel)
 //   • TrainingNomination/GetNominateUserCount → Int        (participants per schedule)
 //   • ConfigurableParameters/GetValue/{key}  → ConfigValueResponse
 //   • i/ILTBatch/IsBatchwiseNominationEnabled → reused from NominateUsersDataModel
@@ -29,18 +29,13 @@ enum ScheduleListDataModel {
         var headers: [String: String]? { nil }
     }
 
-    /// GET — total schedule count. Path params mirror the list filters.
+    // POST w/ CountPayload. old GET /count/null/null/true route answers [] not an Int
     struct ScheduleCountRequest: EndpointModel {
-        var search: String = "null"
-        var searchText: String = "null"
-        /// `"true"` mirrors `ListPayload.showAllData` — with `"false"` the server withholds
-        /// past schedules, so the count would disagree with the list on the Completed tab.
-        var showAllData: String = "true"
         var path: String {
-            [APIConst.courseBaseUrl, APIConst.versionAPI, APIConst.iltSchedule, APIConst.count,
-             search, searchText, showAllData].joined(separator: "/")
+            [APIConst.courseBaseUrl, APIConst.versionAPI, APIConst.iltSchedule, APIConst.count]
+                .joined(separator: "/")
         }
-        var method: HTTPMethod { .get }
+        var method: HTTPMethod { .post }
         var headers: [String: String]? { nil }
     }
 
@@ -80,6 +75,33 @@ enum ScheduleListDataModel {
             case search = "Search"
             case searchText
             case showAllData
+        }
+    }
+
+    // same body web sends, nulls & all
+    struct CountPayload: Encodable {
+        var search: String?
+        var searchText: String?
+        // must match ListPayload.showAllData or Completed tab count drifts from the list
+        var showAllData: String = "true"
+        var fromDate: String?
+        var toDate: String?
+
+        enum CodingKeys: String, CodingKey {
+            case search = "Search"
+            case searchText
+            case showAllData
+            case fromDate = "FromDate"
+            case toDate = "ToDate"
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encodeOptional(search, forKey: .search)
+            try container.encodeOptional(searchText, forKey: .searchText)
+            try container.encode(showAllData, forKey: .showAllData)
+            try container.encodeOptional(fromDate, forKey: .fromDate)
+            try container.encodeOptional(toDate, forKey: .toDate)
         }
     }
 

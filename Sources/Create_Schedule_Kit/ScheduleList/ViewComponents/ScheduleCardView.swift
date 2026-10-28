@@ -65,11 +65,11 @@ struct ScheduleCardView: View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(ColorUtility.primaryColor)
+                .foregroundColor(CSTheme.primaryColor)
                 .frame(width: 40, height: 40)
                 .background(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(ColorUtility.primaryColor.opacity(0.12))
+                        .fill(CSTheme.primaryColor.opacity(0.12))
                 )
         }
         .buttonStyle(.plain)
@@ -80,7 +80,7 @@ struct ScheduleCardView: View {
             HStack(spacing: 8) {
                 Image(systemName: "calendar")
                     .font(.system(size: 14))
-                    .foregroundColor(ColorUtility.primaryColor)
+                    .foregroundColor(CSTheme.primaryColor)
                 Text(schedule.dateText)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(.primary)
@@ -94,7 +94,7 @@ struct ScheduleCardView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "mappin.and.ellipse")
                         .font(.system(size: 14))
-                        .foregroundColor(ColorUtility.primaryColor)
+                        .foregroundColor(CSTheme.primaryColor)
                     Text(schedule.locationText)
                         .font(.system(size: 15))
                         .foregroundColor(.secondary)
@@ -132,10 +132,10 @@ struct ScheduleCardView: View {
             Text("Cancelled")
                 .font(.system(size: 14, weight: .semibold))
         }
-        .foregroundColor(ColorUtility.primaryColor)
+        .foregroundColor(CSTheme.primaryColor)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Capsule().fill(ColorUtility.primaryColor.opacity(0.12)))
+        .background(Capsule().fill(CSTheme.primaryColor.opacity(0.12)))
     }
 
     /// A cancelled schedule keeps only "View details": attendance can no longer be taken on it.
@@ -145,7 +145,7 @@ struct ScheduleCardView: View {
                          tint: .primary, isEnabled: true, action: onViewDetails)
             if !isCancelled {
                 actionButton(title: "Attendance", systemImage: "checklist",
-                             tint: ColorUtility.primaryColor, isEnabled: true, action: onAttendance)
+                             tint: CSTheme.primaryColor, isEnabled: true, action: onAttendance)
             }
         }
     }

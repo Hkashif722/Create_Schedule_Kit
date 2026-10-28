@@ -261,6 +261,26 @@ import NetworkService
         #expect(result.failureMessage == nil)   // caller supplies its own copy
     }
 
+    // MARK: - What the success toast says
+
+    /// A bare acknowledgement is not worth showing — the caller names the learner instead,
+    /// which is more use to a trainer scanning a queue of people.
+    @Test(arguments: [#"{"statusCode":200,"description":"success"}"#,
+                      #"{"statusCode":200,"description":"  SUCCESS "}"#,
+                      #"{"statusCode":200,"description":""}"#,
+                      #"{"statusCode":200}"#,
+                      "true"])
+    func aGenericAcknowledgementLeavesTheCopyToTheCaller(_ json: String) throws {
+        let result = try response(json)
+        #expect(result.isSuccess)
+        #expect(result.successMessage == nil)
+    }
+
+    @Test func aServerThatSaysSomethingUsefulIsQuoted() throws {
+        let result = try response(#"{"statusCode":200,"description":"Attendance marked for 09 Sep."}"#)
+        #expect(result.successMessage == "Attendance marked for 09 Sep.")
+    }
+
     // MARK: - The generated schedule QR
 
     @Test func theScheduleQRCarriesTheSixServerKeysInPascalCase() throws {

@@ -80,7 +80,7 @@ struct QRScannerOverlayView: View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             .trim(from: isExpanded ? 0.35 : 0.34, to: isExpanded ? 0.40 : 0.41)
             .stroke(
-                ColorUtility.secondaryColor,
+                CSTheme.secondaryColor,
                 style: StrokeStyle(lineWidth: 10, lineCap: .round)
             )
     }

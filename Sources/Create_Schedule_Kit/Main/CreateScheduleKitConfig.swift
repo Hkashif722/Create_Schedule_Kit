@@ -6,6 +6,8 @@
 //
 
 import Foundation
+import SwiftUI
+import SwiftUIUtilities
 
 public struct CreateScheduleKitConfig: Sendable {
 
@@ -22,6 +24,8 @@ public struct CreateScheduleKitConfig: Sendable {
     /// The logged-in user's mobile number, posted as `MobileNumber` when a QR scan marks
     /// attendance. Empty when the host has nothing to supply.
     let userMobileNumber: String
+    let primaryColor: Color
+    let secondaryColor: Color
     let tokenProvider: @Sendable () -> String?
 
     public init(
@@ -37,6 +41,8 @@ public struct CreateScheduleKitConfig: Sendable {
         userId: String,
         userRole: String,
         userMobileNumber: String = "",
+        primaryColor: Color = ColorUtility.primaryColor,
+        secondaryColor: Color = ColorUtility.secondaryColor,
         tokenProvider: @escaping @Sendable () -> String?
     ) {
         APIConst.baseURL = baseURL
@@ -51,6 +57,8 @@ public struct CreateScheduleKitConfig: Sendable {
         self.userId = userId
         self.userRole = userRole
         self.userMobileNumber = userMobileNumber
+        self.primaryColor = primaryColor
+        self.secondaryColor = secondaryColor
         self.tokenProvider = tokenProvider
     }
 }

@@ -26,8 +26,8 @@ struct CSRemovableChip: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
-        .foregroundColor(ColorUtility.primaryColor)
-        .background(ColorUtility.primaryColor.opacity(0.12))
+        .foregroundColor(CSTheme.primaryColor)
+        .background(CSTheme.primaryColor.opacity(0.12))
         .clipShape(Capsule())
     }
 }
@@ -49,8 +49,8 @@ struct CSNavChip: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
-            .foregroundColor(ColorUtility.primaryColor)
-            .background(Capsule().fill(ColorUtility.primaryColor.opacity(0.12)))
+            .foregroundColor(CSTheme.primaryColor)
+            .background(Capsule().fill(CSTheme.primaryColor.opacity(0.12)))
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -70,8 +70,8 @@ struct CSSelectableChip: View {
                 .lineLimit(1)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .foregroundColor(isSelected ? ColorUtility.primaryColor.getDynamicTextColor : .primary)
-                .background(isSelected ? ColorUtility.primaryColor : Color(.systemGray6))
+                .foregroundColor(isSelected ? CSTheme.primaryColor.getDynamicTextColor : .primary)
+                .background(isSelected ? CSTheme.primaryColor : Color(.systemGray6))
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)

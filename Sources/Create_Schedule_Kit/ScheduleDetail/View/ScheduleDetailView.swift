@@ -123,7 +123,7 @@ private extension ScheduleDetailView {
                             Image(systemName: "plus").font(.system(size: 14, weight: .bold))
                             Text("Add Nominee").font(.system(size: 15, weight: .bold))
                         }
-                        .foregroundColor(ColorUtility.primaryColor)
+                        .foregroundColor(CSTheme.primaryColor)
                     }
                     .buttonStyle(.plain)
                 }

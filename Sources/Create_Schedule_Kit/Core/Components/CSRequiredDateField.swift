@@ -39,7 +39,7 @@ struct CSRequiredDateField: View {
                 HStack(spacing: 8) {
                     Image(systemName: "calendar")
                         .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(ColorUtility.primaryColor)
+                        .foregroundColor(CSTheme.primaryColor)
                     Text(displayDate.map(Self.format) ?? placeHolder)
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(displayDate == nil ? .secondary : .primary)

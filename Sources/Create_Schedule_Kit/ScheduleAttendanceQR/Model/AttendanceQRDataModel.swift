@@ -162,6 +162,17 @@ enum AttendanceQRDataModel {
             }
         }
 
+        /// The server's own wording for a success, when it says something worth reading.
+        /// A bare acknowledgement is dropped so the caller can name the learner instead.
+        var successMessage: String? {
+            guard case .envelope(let body) = self else { return nil }
+            let trimmed = body.description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !trimmed.isEmpty,
+                  trimmed.caseInsensitiveCompare("success") != .orderedSame
+            else { return nil }
+            return trimmed
+        }
+
         /// What to show when it did not succeed.
         var failureMessage: String? {
             switch self {

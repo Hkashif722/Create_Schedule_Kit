@@ -115,4 +115,86 @@ import Testing
         // Nothing to clear, so no reset request — the token drives keyboard focus too.
         #expect(model.searchResetToken == tokenBefore)
     }
+
+    // MARK: - Clearing an applied filter
+
+    /// Bug: with a User ID filter applied and then cleared, the full nominee list never
+    /// came back. The reload ran, but `usersPayload` still carried the old `searchText`,
+    /// so the server returned the same filtered page.
+    @MainActor
+    @Test func clearingAnAppliedFilterDropsItFromTheNextQuery() throws {
+        let model = viewModel()
+        model.selectColumn(try column(1, "UserId"))
+        model.selectSuggestion(try suggestion(2019, "tester"))
+
+        #expect(model.usersPayload(page: 1).searchText == "tester")
+        #expect(model.usersPayload(page: 1).search == "UserId")
+
+        model.clearSearch()
+
+        #expect(model.searchText.isEmpty)
+        #expect(model.selectedSuggestion == nil)
+        #expect(model.typeaheadResults.isEmpty)
+        // The query that reloads the list must be the unfiltered one.
+        #expect(model.usersPayload(page: 1).searchText == nil)
+    }
+
+    /// `search` names the column `searchText` filters on, so a column with no text is not a
+    /// state the server is ever asked to interpret.
+    @MainActor
+    @Test func clearingAlsoDropsTheColumnFromTheQuery() throws {
+        let model = viewModel()
+        model.selectColumn(try column(1, "UserId"))
+        model.selectSuggestion(try suggestion(2019, "tester"))
+
+        model.clearSearch()
+
+        let payload = model.usersPayload(page: 1)
+        #expect(payload.search == nil)
+        #expect(payload.searchText == nil)
+        // The column stays picked in the UI — only the query drops it.
+        #expect(model.selectedColumn != nil)
+    }
+
+    /// The picked column survives a clear, so the next search still scopes to it.
+    @MainActor
+    @Test func aNewSearchAfterClearingStillScopesToTheChosenColumn() throws {
+        let model = viewModel()
+        model.selectColumn(try column(1, "UserId"))
+        model.selectSuggestion(try suggestion(2019, "tester"))
+        model.clearSearch()
+
+        model.selectSuggestion(try suggestion(4471, "anand"))
+
+        let payload = model.usersPayload(page: 1)
+        #expect(payload.search == "UserId")
+        #expect(payload.searchText == "anand")
+    }
+
+    /// Clearing an already-empty box is the control reporting its own reset after a column
+    /// change, which has reloaded already. Nothing to restore, nothing to re-query.
+    @MainActor
+    @Test func clearingWithNothingAppliedIsANoOp() throws {
+        let model = viewModel()
+        model.selectColumn(try column(1, "UserId"))
+
+        model.clearSearch()
+
+        #expect(model.searchText.isEmpty)
+        #expect(model.selectedSuggestion == nil)
+        #expect(model.usersPayload(page: 1).searchText == nil)
+    }
+
+    /// A value typed but never picked filters nothing — only a picked suggestion sets
+    /// `searchText` — but clearing it must still leave the query unfiltered.
+    @MainActor
+    @Test func clearingAfterTypingWithoutPickingLeavesNoFilter() throws {
+        let model = viewModel()
+        model.selectColumn(try column(1, "UserId"))
+
+        model.clearSearch()
+
+        #expect(model.usersPayload(page: 1).search == nil)
+        #expect(model.usersPayload(page: 1).searchText == nil)
+    }
 }

@@ -48,6 +48,6 @@ struct CSTextField: View {
     /// the emphasized/branded border). Editable fields highlight once they have content.
     private var borderColor: Color {
         if isReadOnly { return Color(.systemGray4) }
-        return text.isEmpty ? Color(.systemGray4) : ColorUtility.primaryColor
+        return text.isEmpty ? Color(.systemGray4) : CSTheme.primaryColor
     }
 }

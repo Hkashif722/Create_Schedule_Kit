@@ -87,9 +87,9 @@ private extension BulkMarkAttendanceView {
                     VStack(spacing: 8) {
                         Text(tab.title)
                             .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(isSelected ? ColorUtility.primaryColor : .secondary)
+                            .foregroundColor(isSelected ? CSTheme.primaryColor : .secondary)
                         Rectangle()
-                            .fill(isSelected ? ColorUtility.primaryColor : Color.clear)
+                            .fill(isSelected ? CSTheme.primaryColor : Color.clear)
                             .frame(height: 3)
                     }
                     .frame(maxWidth: .infinity)

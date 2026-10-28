@@ -46,7 +46,7 @@ struct CSStepTracker: View {
 
     private func connector(visible: Bool, filled: Bool) -> some View {
         Rectangle()
-            .fill(visible ? (filled ? ColorUtility.primaryColor : Color(.systemGray4)) : Color.clear)
+            .fill(visible ? (filled ? CSTheme.primaryColor : Color(.systemGray4)) : Color.clear)
             .frame(height: 2)
             .frame(maxWidth: .infinity)
     }
@@ -56,30 +56,30 @@ struct CSStepTracker: View {
         ZStack {
             switch state(n) {
             case .completed:
-                Circle().fill(ColorUtility.primaryColor)
+                Circle().fill(CSTheme.primaryColor)
                 Image(systemName: "checkmark")
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(ColorUtility.primaryColor.getDynamicTextColor)
+                    .foregroundColor(CSTheme.primaryColor.getDynamicTextColor)
             case .current:
-                Circle().fill(ColorUtility.primaryColor)
+                Circle().fill(CSTheme.primaryColor)
                 Text("\(n)")
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(ColorUtility.primaryColor.getDynamicTextColor)
+                    .foregroundColor(CSTheme.primaryColor.getDynamicTextColor)
             case .upcoming:
                 Circle().fill(Color(.systemBackground))
                 Circle()
-                    .strokeBorder(ColorUtility.primaryColor.opacity(0.6),
+                    .strokeBorder(CSTheme.primaryColor.opacity(0.6),
                                   style: StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
                 Text("\(n)")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(ColorUtility.primaryColor)
+                    .foregroundColor(CSTheme.primaryColor)
             }
         }
         .frame(width: circleSize, height: circleSize)
         .background {
             if state(n) == .current {
                 Circle()
-                    .fill(ColorUtility.primaryColor.opacity(0.15))
+                    .fill(CSTheme.primaryColor.opacity(0.15))
                     .frame(width: circleSize + 9, height: circleSize + 9)
             }
         }
@@ -96,7 +96,7 @@ struct CSStepTracker: View {
     private func labelColor(_ n: Int) -> Color {
         switch state(n) {
         case .completed: return ColorUtility.deepGreen
-        case .current:   return ColorUtility.primaryColor
+        case .current:   return CSTheme.primaryColor
         case .upcoming:  return .secondary
         }
     }

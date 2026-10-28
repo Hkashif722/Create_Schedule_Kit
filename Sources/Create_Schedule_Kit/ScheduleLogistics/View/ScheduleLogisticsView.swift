@@ -66,7 +66,7 @@ private extension ScheduleLogisticsView {
     var trainerCard: some View {
         CSSectionCard(
             icon: "person",
-            iconColor: ColorUtility.primaryColor,
+            iconColor: CSTheme.primaryColor,
             title: "Trainer",
             subtitle: "Who delivers the session"
         ) {
@@ -103,7 +103,7 @@ private extension ScheduleLogisticsView {
                 Text("Add another trainer")
             }
             .font(.system(size: 14, weight: .semibold))
-            .foregroundColor(ColorUtility.primaryColor)
+            .foregroundColor(CSTheme.primaryColor)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)

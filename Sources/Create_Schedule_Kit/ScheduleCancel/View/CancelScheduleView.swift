@@ -123,7 +123,7 @@ private extension CancelScheduleView {
                 minHeight: 110,
                 cornerRadius: 12,
                 borderColor: viewModel.showsReasonWarningBorder
-                    ? ColorUtility.primaryColor
+                    ? CSTheme.primaryColor
                     : Color(.systemGray4),
                 backgroundColor: Color(.systemBackground),
                 maxCharacters: CancelScheduleViewModel.reasonLimit,

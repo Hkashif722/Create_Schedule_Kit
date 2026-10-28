@@ -74,10 +74,10 @@ struct AttendanceListToolbarView: View {
 
     private var selectionBox: some View {
         RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .strokeBorder(isAllSelected ? ColorUtility.primaryColor : Color(.systemGray3), lineWidth: 1.8)
+            .strokeBorder(isAllSelected ? CSTheme.primaryColor : Color(.systemGray3), lineWidth: 1.8)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(isAllSelected ? ColorUtility.primaryColor : Color.clear)
+                    .fill(isAllSelected ? CSTheme.primaryColor : Color.clear)
             )
             .frame(width: 24, height: 24)
             .overlay(

@@ -46,8 +46,8 @@ enum TrainerSource: CaseIterable, Identifiable {
     /// theme rather than the mock's literal blue/green.
     var tint: Color {
         switch self {
-        case .existingUser: return ColorUtility.primaryColor
-        case .newTrainer:   return ColorUtility.secondaryColor
+        case .existingUser: return CSTheme.primaryColor
+        case .newTrainer:   return CSTheme.secondaryColor
         }
     }
 }
@@ -97,7 +97,7 @@ private extension TrainerSourceMenuField {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(isMenuOpen ? ColorUtility.primaryColor : Color(.systemGray4), lineWidth: 1)
+                    .stroke(isMenuOpen ? CSTheme.primaryColor : Color(.systemGray4), lineWidth: 1)
             )
             .contentShape(Rectangle())
         }

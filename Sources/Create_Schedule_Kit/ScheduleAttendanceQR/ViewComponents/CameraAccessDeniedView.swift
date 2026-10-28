@@ -32,11 +32,11 @@ struct CameraAccessDeniedView: View {
                 Button(action: onOpenSettings) {
                     Text("Open Settings")
                         .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(ColorUtility.primaryColor)
+                        .foregroundColor(CSTheme.primaryColor)
                         .padding(.horizontal, 18)
                         .frame(height: 44)
                         .overlay(
-                            Capsule().stroke(ColorUtility.primaryColor, lineWidth: 1.5)
+                            Capsule().stroke(CSTheme.primaryColor, lineWidth: 1.5)
                         )
                 }
                 .buttonStyle(.plain)

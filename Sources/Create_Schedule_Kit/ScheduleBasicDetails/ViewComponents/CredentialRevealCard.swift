@@ -34,7 +34,7 @@ struct CredentialRevealCard: View {
                 Spacer()
                 Button(action: onToggleReveal) {
                     Image(systemName: isRevealed ? "eye.slash" : "eye")
-                        .foregroundColor(ColorUtility.primaryColor)
+                        .foregroundColor(CSTheme.primaryColor)
                 }
                 .buttonStyle(.plain)
             }
@@ -46,7 +46,7 @@ struct CredentialRevealCard: View {
             }
         }
         .padding(14)
-        .background(ColorUtility.primaryColor.opacity(0.06))
+        .background(CSTheme.primaryColor.opacity(0.06))
         .cornerRadius(12)
     }
 }

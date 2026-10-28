@@ -233,8 +233,19 @@ import Testing
     }
 
     /// The count has to be taken over the same population as the list, or the two disagree.
-    @Test func countRequestAsksForAllData() {
-        #expect(ScheduleListDataModel.ScheduleCountRequest().showAllData == "true")
-        #expect(ScheduleListDataModel.ScheduleCountRequest().path.hasSuffix("/null/null/true"))
+    @Test func countRequestAsksForAllData() throws {
+        let request = ScheduleListDataModel.ScheduleCountRequest()
+        #expect(request.method == .post)
+        #expect(request.path.hasSuffix("/ILTSchedule/count"))
+
+        let data = try JSONEncoder().encode(ScheduleListDataModel.CountPayload())
+        let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        #expect(object.count == 5)
+        #expect(object["showAllData"] as? String == "true")
+        #expect(object["Search"] is NSNull)
+        #expect(object["searchText"] is NSNull)
+        #expect(object["FromDate"] is NSNull)
+        #expect(object["ToDate"] is NSNull)
     }
 }

@@ -69,15 +69,15 @@ struct HolidayRowView: View {
             } else {
                 Toggle("", isOn: Binding(get: { day.isHoliday }, set: { _ in onToggle() }))
                     .labelsHidden()
-                    .tint(ColorUtility.primaryColor)
+                    .tint(CSTheme.primaryColor)
             }
         }
         .padding(12)
-        .background(day.isHoliday ? ColorUtility.primaryColor.opacity(0.06) : Color(.systemBackground))
+        .background(day.isHoliday ? CSTheme.primaryColor.opacity(0.06) : Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(day.isHoliday ? ColorUtility.primaryColor.opacity(0.25) : Color(.systemGray5), lineWidth: 1)
+                .stroke(day.isHoliday ? CSTheme.primaryColor.opacity(0.25) : Color(.systemGray5), lineWidth: 1)
         )
         .opacity(lockCaption == nil ? 1 : 0.55)
         .onAppear { labelText = day.label }
@@ -87,13 +87,13 @@ struct HolidayRowView: View {
         VStack(spacing: 0) {
             Text(monthText)
                 .font(.system(size: 11, weight: .bold))
-                .foregroundColor(day.isHoliday ? ColorUtility.primaryColor : .secondary)
+                .foregroundColor(day.isHoliday ? CSTheme.primaryColor : .secondary)
             Text(dayNumber)
                 .font(.system(size: 20, weight: .bold))
-                .foregroundColor(day.isHoliday ? ColorUtility.primaryColor : .primary)
+                .foregroundColor(day.isHoliday ? CSTheme.primaryColor : .primary)
         }
         .frame(width: 54, height: 54)
-        .background(day.isHoliday ? ColorUtility.primaryColor.opacity(0.12) : Color(.systemGray5))
+        .background(day.isHoliday ? CSTheme.primaryColor.opacity(0.12) : Color(.systemGray5))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }

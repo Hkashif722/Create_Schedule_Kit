@@ -442,9 +442,10 @@ extension ScheduleListViewModel {
     @MainActor
     private func fetchCount() async {
         do {
-            totalCount = try await ApiService.shared.requestGetHeader(
+            totalCount = try await ApiService.shared.requestPostHeader(
                 type: Int.self,
-                model: ScheduleListDataModel.ScheduleCountRequest()
+                model: ScheduleListDataModel.ScheduleCountRequest(),
+                payload: ScheduleListDataModel.CountPayload()
             )
         } catch {
             handleAPIError(error, resetLoadingState: false, showToast: false)

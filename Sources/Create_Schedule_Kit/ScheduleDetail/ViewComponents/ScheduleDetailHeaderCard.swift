@@ -20,12 +20,12 @@ struct ScheduleDetailHeaderCard: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 14) {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(ColorUtility.primaryColor)
+                    .fill(CSTheme.primaryColor)
                     .frame(width: 64, height: 64)
                     .overlay(
                         Image(systemName: "play.fill")
                             .font(.system(size: 22, weight: .bold))
-                            .foregroundColor(ColorUtility.primaryColor.getDynamicTextColor)
+                            .foregroundColor(CSTheme.primaryColor.getDynamicTextColor)
                     )
                 VStack(alignment: .leading, spacing: 8) {
                     Text(schedule.detailTitle)
@@ -80,21 +80,21 @@ struct ScheduleDetailHeaderCard: View {
 
     private var statusPill: some View {
         HStack(spacing: 6) {
-            Circle().fill(ColorUtility.primaryColor).frame(width: 7, height: 7)
+            Circle().fill(CSTheme.primaryColor).frame(width: 7, height: 7)
             Text(schedule.statusText)
                 .font(.system(size: 14, weight: .bold))
-                .foregroundColor(ColorUtility.primaryColor)
+                .foregroundColor(CSTheme.primaryColor)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(Capsule().fill(ColorUtility.primaryColor.opacity(0.12)))
+        .background(Capsule().fill(CSTheme.primaryColor.opacity(0.12)))
     }
 
     private func row<Content: View>(icon: String, @ViewBuilder content: () -> Content) -> some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(ColorUtility.primaryColor)
+                .foregroundColor(CSTheme.primaryColor)
                 .frame(width: 22)
             content()
             Spacer(minLength: 0)

@@ -99,7 +99,7 @@ private extension NominateUsersView {
             } label: {
                 Image(systemName: "slider.horizontal.3")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(ColorUtility.primaryColor)
+                    .foregroundColor(CSTheme.primaryColor)
                     .frame(width: 52, height: 52)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -143,10 +143,10 @@ private extension NominateUsersView {
 
     func selectionBox(isOn: Bool) -> some View {
         RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .strokeBorder(isOn ? ColorUtility.primaryColor : Color(.systemGray3), lineWidth: 1.8)
+            .strokeBorder(isOn ? CSTheme.primaryColor : Color(.systemGray3), lineWidth: 1.8)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(isOn ? ColorUtility.primaryColor : Color.clear)
+                    .fill(isOn ? CSTheme.primaryColor : Color.clear)
             )
             .frame(width: 24, height: 24)
             .overlay(

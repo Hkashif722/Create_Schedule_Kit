@@ -242,30 +242,6 @@ extension AttendanceQRScannerViewModel {
     }
 
     @MainActor
-    private func showMarked(_ name: String) {
-        let model = CustomAlertPopupModel(
-            title: "Attendance Marked",
-            alertType: .none,
-            content: {
-                Text("\(name) has been marked present.")
-                    .multilineTextAlignment(.center)
-                    .padding()
-            },
-            primaryButtonTitle: "Scan Another",
-            primaryAction: { [weak self] in
-                self?.router.dismissModal()
-                self?.rescan()
-            },
-            secondaryButtonTitle: "Done",
-            secondaryAction: { [weak self] in
-                self?.router.dismissModal()
-                self?.didTapClose()
-            }
-        )
-        present(model)
-    }
-
-    @MainActor
     private func present(_ model: CustomAlertPopupModel) {
         NavigationService.shared.navigate(
             using: router,
@@ -312,18 +288,23 @@ extension AttendanceQRScannerViewModel {
             loadingState = .none
 
             guard response.isSuccess else {
-                // A 200 can still carry a rejected row — an already-marked learner, say.
                 showRetryableError(response.failureMessage ?? "Could not mark attendance. Please try again.")
                 return
             }
+            
             navModel.onMarked()
-            showMarked(payload.displayName)
+            
+            toast = Toast(
+                style: .success,
+                message: response.successMessage ?? "\(payload.displayName) marked present."
+            )
+            rescan()
         } catch let error as APIError {
-            handleAPIError(error.toUIError(), resetLoadingState: true, showToast: true)
-            rescan()
+            loadingState = .none
+            showRetryableError(error.toUIError().localizedDescription)
         } catch {
-            handleAPIError(error, resetLoadingState: true, showToast: true)
-            rescan()
+            loadingState = .none
+            showRetryableError(error.localizedDescription)
         }
     }
 }

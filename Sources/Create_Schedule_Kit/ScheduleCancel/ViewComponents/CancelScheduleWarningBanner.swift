@@ -18,7 +18,7 @@ struct CancelScheduleWarningBanner: View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "info.circle")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(ColorUtility.primaryColor)
+                .foregroundColor(CSTheme.primaryColor)
 
             Text(message)
                 .font(.system(size: 14))
@@ -27,12 +27,12 @@ struct CancelScheduleWarningBanner: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(14)
-        .background(ColorUtility.primaryColor.opacity(0.08))
+        .background(CSTheme.primaryColor.opacity(0.08))
         // Leading accent bar. Drawn as an overlay rather than an HStack element so the bar
         // stretches to the banner's full height whatever the text wraps to.
         .overlay(alignment: .leading) {
             Rectangle()
-                .fill(ColorUtility.primaryColor)
+                .fill(CSTheme.primaryColor)
                 .frame(width: 4)
         }
         .cornerRadius(10)

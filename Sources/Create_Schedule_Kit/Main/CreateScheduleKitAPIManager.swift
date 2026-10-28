@@ -54,6 +54,8 @@ public actor CreateScheduleKitAPIManager {
     // Call this once from the host app
     public func configure(_ config: CreateScheduleKitConfig) {
         self.config = config
+        CSTheme.primaryColor = config.primaryColor
+        CSTheme.secondaryColor = config.secondaryColor
 
         ApiService.shared.setAuthToken(config.tokenProvider)
         APIConfiguration.shared.baseURL = APIConst.baseURL

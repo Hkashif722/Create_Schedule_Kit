@@ -89,7 +89,7 @@ private extension AttendanceView {
                                 .font(.system(size: 14, weight: .semibold))
                         }
                     }
-                    .foregroundColor(ColorUtility.primaryColor)
+                    .foregroundColor(CSTheme.primaryColor)
                 }
                 .buttonStyle(.plain)
             },

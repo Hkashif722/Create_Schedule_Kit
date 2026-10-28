@@ -34,11 +34,11 @@ struct CSSegmentedControl<Option: Hashable>: View {
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: 46)
-                    .foregroundColor(isSelected ? ColorUtility.primaryColor : .primary)
-                    .background(isSelected ? ColorUtility.primaryColor.opacity(0.12) : Color(.systemBackground))
+                    .foregroundColor(isSelected ? CSTheme.primaryColor : .primary)
+                    .background(isSelected ? CSTheme.primaryColor.opacity(0.12) : Color(.systemBackground))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(isSelected ? ColorUtility.primaryColor : Color(.systemGray4),
+                            .stroke(isSelected ? CSTheme.primaryColor : Color(.systemGray4),
                                     lineWidth: isSelected ? 1.5 : 1)
                     )
                     .cornerRadius(12)

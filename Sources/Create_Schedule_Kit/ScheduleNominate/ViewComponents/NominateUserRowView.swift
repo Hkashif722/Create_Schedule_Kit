@@ -32,10 +32,10 @@ struct NominateUserRowView: View {
 
     private var checkbox: some View {
         RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .strokeBorder(isSelected ? ColorUtility.primaryColor : Color(.systemGray3), lineWidth: 1.8)
+            .strokeBorder(isSelected ? CSTheme.primaryColor : Color(.systemGray3), lineWidth: 1.8)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(isSelected ? ColorUtility.primaryColor : Color.clear)
+                    .fill(isSelected ? CSTheme.primaryColor : Color.clear)
             )
             .frame(width: 24, height: 24)
             .overlay(
@@ -67,10 +67,10 @@ struct NominateUserRowView: View {
             if let userId = user.userId, !userId.isEmpty {
                 Text("ID · \(userId)")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(ColorUtility.primaryColor)
+                    .foregroundColor(CSTheme.primaryColor)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
-                    .background(Capsule().fill(ColorUtility.primaryColor.opacity(0.12)))
+                    .background(Capsule().fill(CSTheme.primaryColor.opacity(0.12)))
             }
 
             if let email = user.emailId, !email.isEmpty {
