@@ -448,7 +448,8 @@ extension ScheduleListViewModel {
                 payload: ScheduleListDataModel.CountPayload()
             )
         } catch {
-            handleAPIError(error, resetLoadingState: false, showToast: false)
+            // count isnt shown anywhere. a failed one used to pop "something went wrong" over a loaded list
+            Logger.shared.log(.error, message: "ILTSchedule/count failed: \(error)")
         }
     }
 
@@ -468,7 +469,9 @@ extension ScheduleListViewModel {
             )
             isBatchwiseEnabled = flag.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "yes"
         } catch {
-            handleAPIError(error, resetLoadingState: false, showToast: false)
+            // nothing on the list reads this flag, so fail closed w/o the popup
+            isBatchwiseEnabled = false
+            Logger.shared.log(.error, message: "IsBatchwiseNominationEnabled failed: \(error)")
         }
     }
 

@@ -210,22 +210,33 @@ extension ScheduleBasicDetailsViewModel {
         return count > 0 ? "\(count) holiday\(count > 1 ? "s" : "") marked" : "Schedule spans the selected range"
     }
 
-    var canContinue: Bool {
+    /// The first unmet requirement of the step, or nil when it is complete.
+    var validationMessage: String? {
         if isScheduleCodeEditable,
            scheduleCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return false
+            return "Enter a schedule code."
         }
-        guard selectedCourse != nil, selectedModule != nil else { return false }
-        if deliveryMode == .online, webinarType == nil { return false }
+        if selectedCourse == nil { return "Select a course." }
+        if selectedModule == nil { return "Select a module." }
+        if deliveryMode == .online, webinarType == nil { return "Select a webinar type." }
         // The hand-entered Teams link is required once the tenant unlocks it.
-        if requiresTeamsLink, !WebinarLinkRules.isValidLink(teamsLink) { return false }
-        guard startDate != nil, endDate != nil, registrationEndDate != nil else { return false }
-        guard startTime != nil, endTime != nil else { return false }
+        if requiresTeamsLink, !WebinarLinkRules.isValidLink(teamsLink) {
+            return "Enter a valid meeting link starting with https://"
+        }
+        if startDate == nil { return "Select a start date." }
+        if endDate == nil { return "Select an end date." }
+        if registrationEndDate == nil { return "Select a registration end date." }
+        if startTime == nil { return "Select a start time." }
+        if endTime == nil { return "Select an end time." }
         // Backstop for pairs that never went through the pickers — e.g. a draft hydrated
         // from an existing schedule in edit mode.
-        guard !ScheduleDateRules.isEndTimeBeforeOrEqualToStart(start: startTime, end: endTime) else { return false }
-        return true
+        if ScheduleDateRules.isEndTimeBeforeOrEqualToStart(start: startTime, end: endTime) {
+            return "End time must be later than start time."
+        }
+        return nil
     }
+
+    var canContinue: Bool { validationMessage == nil }
 
     func format(_ date: Date) -> String {
         let f = DateFormatter()
@@ -422,8 +433,8 @@ extension ScheduleBasicDetailsViewModel {
     }
 
     func didTapContinue() {
-        guard canContinue else {
-            toast = Toast(style: .warning, message: "Please complete all required fields.")
+        if let message = validationMessage {
+            toast = Toast(style: .warning, message: message)
             return
         }
         commitToDraft()

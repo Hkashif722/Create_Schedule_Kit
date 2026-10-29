@@ -10,7 +10,7 @@
 //   • ILTTrainingAttendance/GetUsersForAttendance        → [AttendanceUser]  (paginated)
 //   • ILTTrainingAttendance/GetUsersCountForAttendance   → Int               (total, parallel)
 //   • ConfigurableValues/ATTDSTATUS                      → [AttendanceStatusOption]
-//   • user/GetConfigurableParameterValue/AttendanceOnCurrentDate → String ("Yes"/"No")
+//   • ConfigurableParameters/GetValue/AttendanceOnCurrentDate → reuses ScheduleListDataModel.ConfigValueResponse
 //   • ConfigurableParameters/GetValue/ATTNOM_DEL         → reuses ScheduleListDataModel.ConfigValueResponse
 //   • ILTTrainingAttendance                              → NominateUsersDataModel.NominateResponse
 //       body: MarkAttendanceItem (Save) | InsertItem (Nominate tab) — see those types
@@ -50,17 +50,6 @@ enum AttendanceDataModel {
     struct GetAttendanceStatusRequest: EndpointModel {
         var path: String {
             [APIConst.courseBaseUrl, APIConst.versionAPI, APIConst.configurableValues, APIConst.attdStatus]
-                .joined(separator: "/")
-        }
-        var method: HTTPMethod { .get }
-        var headers: [String: String]? { nil }
-    }
-
-    /// GET — "Yes"/"No": whether attendance may only be marked on the current date.
-    struct GetAttendanceOnCurrentDateRequest: EndpointModel {
-        var path: String {
-            [APIConst.courseBaseUrl, APIConst.versionAPI, APIConst.userLower,
-             APIConst.getConfigurableParameterValue, APIConst.attendanceOnCurrentDate]
                 .joined(separator: "/")
         }
         var method: HTTPMethod { .get }

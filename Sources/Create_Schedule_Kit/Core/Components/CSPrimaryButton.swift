@@ -47,7 +47,8 @@ struct CSNavButton: View {
                 .cornerRadius(14)
         }
         .buttonStyle(.plain)
-        .disabled(!isEnabled)
+        // no .disabled on purpose, vm toasts whats missing. dead grey btn = QA ticket
+        .accessibilityHint(isEnabled ? "" : "Some required fields are incomplete")
     }
 }
 

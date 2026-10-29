@@ -244,10 +244,12 @@ extension AttendanceViewModel {
     @MainActor
     private func fetchCurrentDateFlag() async {
         do {
-            // This endpoint returns a bare plain-text body (`Yes`/`No`), not JSON, so it must
-            // bypass ApiService's JSONDecoder — see PlainTextAPIClient.
-            let flag = try await PlainTextAPIClient.get(AttendanceDataModel.GetAttendanceOnCurrentDateRequest())
-            restrictToCurrentDate = flag.lowercased() == "yes"
+            // GetValue wraps it in json. user/GetConfigurableParameterValue sends bare text ApiService cant decode
+            let response = try await ApiService.shared.requestGetHeader(
+                type: ScheduleListDataModel.ConfigValueResponse.self,
+                model: ScheduleListDataModel.GetConfigValueRequest(key: "AttendanceOnCurrentDate")
+            )
+            restrictToCurrentDate = response.isYes
             discardSelectedDateIfOutOfBounds()
         } catch {
             handleAPIError(error, resetLoadingState: false, showToast: false)

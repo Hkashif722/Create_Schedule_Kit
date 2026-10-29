@@ -87,8 +87,6 @@ internal struct APIConst {
     // MARK: - ConfigurableValues / user parameters
     static let configurableValues = "ConfigurableValues"
     static let attdStatus = "ATTDSTATUS"
-    static let getConfigurableParameterValue = "GetConfigurableParameterValue"
-    static let attendanceOnCurrentDate = "AttendanceOnCurrentDate"
 
     // MARK: - Static assets
     static let timezonesJsonPath = "/assets/json_data/timezones.json"

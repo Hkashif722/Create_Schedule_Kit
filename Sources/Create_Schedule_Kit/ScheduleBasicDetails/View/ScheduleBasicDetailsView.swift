@@ -254,7 +254,7 @@ private extension ScheduleBasicDetailsView {
                     viewModel.timezones,
                     placeholder: "Select time zone",
                     selectedOption: viewModel.selectedTimezone,
-                    isSearchable: true,
+                    isSearchable: false,
                     onSelection: { viewModel.didSelectTimezone($0) }
                 )
             }
