@@ -35,6 +35,7 @@ final class QuizPlayerViewModel: BaseViewModel {
     @Published private(set) var questions: [DM.PlayerQuestion] = []
     @Published private(set) var currentIndex = 0
     @Published private(set) var sheet = DM.AnswerSheet()
+    @Published private(set) var visitedIDs: Set<Int> = []
     @Published private(set) var secondsLeft: Int?
     @Published private(set) var isTimeUp = false
     @Published private(set) var isSubmitting = false
@@ -80,9 +81,21 @@ extension QuizPlayerViewModel {
     var positionText: String { "Question \(currentIndex + 1) of \(questions.count)" }
     var answeredText: String { "\(answeredCount) answered" }
 
-    var progress: Double {
-        guard !questions.isEmpty else { return 0 }
-        return Double(currentIndex + 1) / Double(questions.count)
+    var questionText: AttributedString {
+        guard let question = currentQuestion else { return AttributedString() }
+        return DM.numberedQuestionText(question.questionText, number: currentIndex + 1)
+    }
+
+    var instructionText: String? {
+        guard let instruction = currentQuestion?.learnerInstruction?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !instruction.isEmpty else { return nil }
+        return instruction
+    }
+
+    var isMultipleSelection: Bool { currentQuestion?.isMultiple == true }
+
+    var segments: [DM.Segment] {
+        DM.segments(for: questions, sheet: sheet, visitedIDs: visitedIDs)
     }
 
     var marksText: String {
@@ -102,23 +115,15 @@ extension QuizPlayerViewModel {
         let picked = sheet.selected(question.attemptQuestionId)
         return question.options.map { option in
             SharedAssessmentOptionModel(
-                id: option.stableID,
-                title: option.optionText,
-                isSelected: picked.contains(option.id),
+                from: option,
                 questionID: question.attemptQuestionId,
-                optionText: option.optionText,
-                selectedOptionId: Int32(clamping: option.id)
+                isSelected: picked.contains(option.id)
             )
         }
     }
 
     var currentOptionType: AssessmentKit.OptionType {
-        currentQuestion?.isMultiple == true ? .multipleSelection : .singleSelection
-    }
-
-    func isAnswered(at index: Int) -> Bool {
-        guard questions.indices.contains(index) else { return false }
-        return sheet.isAnswered(questions[index].attemptQuestionId)
+        isMultipleSelection ? .multipleSelection : .singleSelection
     }
 }
 
@@ -222,6 +227,7 @@ extension QuizPlayerViewModel {
         guard questions.indices.contains(index), index != currentIndex else { return }
         // the one being left, plus any earlier save that failed
         saveAllPending()
+        if let leaving = currentQuestion { visitedIDs.insert(leaving.attemptQuestionId) }
         currentIndex = index
     }
 

@@ -9,6 +9,7 @@
 
 import Foundation
 import NetworkService
+import AssessmentKit
 import Testing
 @testable import Create_Schedule_Kit
 
@@ -282,6 +283,36 @@ import Testing
         #expect(!sheet.needsSave(2))
         sheet.finishSave(2, optionIDs: second, succeeded: true)
         #expect(!sheet.needsSave(2))
+    }
+
+    // MARK: - AssessmentKit mapping
+
+    @Test func optionRowKeepsItsIdentityAndServerID() {
+        let option = DM.PlayerOption(id: 42, optionText: "Paris")
+        let row = SharedAssessmentOptionModel(from: option, questionID: 7, isSelected: true)
+        #expect(row.id == option.stableID)
+        #expect(row.selectedOptionId == 42)
+        #expect(row.questionID == 7)
+        #expect(row.isSelected)
+        #expect(row.optionText == "Paris")
+        // re-mapped on every tap, so the row id must not change
+        #expect(SharedAssessmentOptionModel(from: option, questionID: 7, isSelected: false).id == row.id)
+    }
+
+    @Test func paletteColoursAnsweredVisitedAndUntouched() {
+        let questions = [question(1, selected: [11]), question(2), question(3)]
+        let sheet = DM.AnswerSheet(questions: questions)
+        let segments = DM.segments(for: questions, sheet: sheet, visitedIDs: [1, 2])
+        #expect(segments.map(\.id) == [1, 2, 3])
+        #expect(segments.map(\.sequenceNo) == [1, 2, 3])
+        #expect(segments[0].colorState == .attempted)
+        #expect(segments[1].colorState == .visited)
+        #expect(segments[2].colorState == .notAttempted)
+    }
+
+    @Test func questionHeaderIsNumbered() {
+        let text = DM.numberedQuestionText("Capital of France?", number: 3)
+        #expect(String(text.characters) == "Q3. Capital of France?")
     }
 
     // MARK: - Countdown

@@ -2,8 +2,8 @@
 //  QuizPlayerView.swift
 //  Create_Schedule_Kit
 //
-//  Full-screen quiz player: progress + palette, one question at a time, Previous / Next /
-//  Submit Quiz, and the result in place once submitted.
+//  Full-screen quiz player, laid out like the main app's assessment from AssessmentKit views:
+//  question, options, palette + back / forward + Submit Quiz. Result shows in place once submitted.
 //
 
 import SwiftUI
@@ -12,8 +12,6 @@ import SwiftUIUtilities
 import AssessmentKit
 
 struct QuizPlayerView: View {
-
-    typealias DM = ScheduleQuizAttemptDataModel
 
     @StateObject private var viewModel: QuizPlayerViewModel
 
@@ -152,117 +150,73 @@ private extension QuizPlayerView {
     }
 
     var playingView: some View {
-        VStack(spacing: 0) {
-            progressHeader
+        VStack(alignment: .leading, spacing: 10) {
             if viewModel.isTimeUp {
                 CSInfoBanner(style: .danger, title: "Time's up", message: "Your answers are being submitted.",
                              systemImage: "clock.badge.exclamationmark")
-                    .padding(.horizontal)
-                    .padding(.top, 12)
             }
-            // shared option list brings its own ScrollView. wrap it in another and scroll breaks
-            Group {
-                if let question = viewModel.currentQuestion {
-                    questionBody(question)
-                        .padding()
-                } else {
-                    Spacer()
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            footer
-        }
-    }
-
-    var progressHeader: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text(viewModel.positionText)
+            if let question = viewModel.currentQuestion {
+                questionHeader
+                // shared option list brings its own ScrollView. wrap it in another and scroll breaks
+                QuizSelectionView(
+                    questionID: question.attemptQuestionId,
+                    options: viewModel.currentOptions,
+                    optionType: viewModel.currentOptionType,
+                    onSelect: viewModel.didSelectOption
+                )
+                .disabled(!viewModel.acceptsAnswers)
+                .opacity(viewModel.acceptsAnswers ? 1 : 0.6)
+            } else {
                 Spacer()
-                Text(viewModel.answeredText)
             }
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundColor(.secondary)
-
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color(.systemGray5))
-                    Capsule()
-                        .fill(CSTheme.primaryColor)
-                        .frame(width: proxy.size.width * viewModel.progress)
-                }
-            }
-            .frame(height: 6)
-            .animation(.easeInOut(duration: 0.2), value: viewModel.currentIndex)
-            .accessibilityHidden(true)
-
-            QuizQuestionPaletteView(
-                questionIDs: viewModel.questions.map(\.attemptQuestionId),
-                currentIndex: viewModel.currentIndex,
-                answeredIDs: Set(viewModel.questions.map(\.attemptQuestionId).filter { viewModel.sheet.isAnswered($0) }),
-                onSelect: viewModel.didSelectQuestion(at:)
-            )
+            bottomControl
         }
-        .padding(.horizontal)
-        .padding(.vertical, 12)
-        .background(Color(.systemBackground))
-        .overlay(alignment: .bottom) { Divider() }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color(.systemBackground).ignoresSafeArea(edges: .bottom))
     }
 
-    func questionBody(_ question: DM.PlayerQuestion) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                SharedAssessmentHeaderView(contentType: "", questionText: AttributedString(question.questionText))
-                if let instruction = question.learnerInstruction?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !instruction.isEmpty {
-                    Text(instruction)
-                        .font(.system(size: 13.5))
-                        .foregroundColor(.secondary)
-                }
-                if question.isMultiple {
-                    Text("Select all that apply")
-                        .font(.system(size: 12.5, weight: .semibold))
-                        .foregroundColor(CSTheme.primaryColor)
-                }
+    var questionHeader: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SharedAssessmentHeaderView(contentType: "", questionText: viewModel.questionText)
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityValue("\(viewModel.positionText), \(viewModel.answeredText)")
+            if let instruction = viewModel.instructionText {
+                Text(instruction)
+                    .font(.system(size: 13.5))
+                    .foregroundStyle(.secondary)
             }
-            SharedAssessmentSelectionTypeView(
-                questionID: question.attemptQuestionId,
-                contentType: .objective,
-                options: viewModel.currentOptions,
-                optionType: viewModel.currentOptionType,
-                isSelected: { $0.isSelected },
-                handleSelection: { viewModel.didSelectOption($0) },
-                getTitle: { $0.optionText ?? $0.title }
-            )
-            .disabled(!viewModel.acceptsAnswers)
-            .opacity(viewModel.acceptsAnswers ? 1 : 0.6)
+            if viewModel.isMultipleSelection || !viewModel.marksText.isEmpty {
+                HStack(spacing: 8) {
+                    if viewModel.isMultipleSelection {
+                        Text("Select all that apply")
+                            .foregroundStyle(CSTheme.primaryColor)
+                    }
+                    Spacer(minLength: 0)
+                    Text(viewModel.marksText)
+                        .foregroundStyle(.secondary)
+                }
+                .font(.system(size: 12.5, weight: .semibold))
+                .accessibilityElement(children: .combine)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    var footer: some View {
-        HStack(spacing: 12) {
-            CSSecondaryButton(title: "Previous", systemImage: "chevron.left",
-                              isEnabled: !viewModel.isFirstQuestion && !viewModel.isSubmitting,
-                              height: 46, expands: false, action: viewModel.didTapPrevious)
-            Text(viewModel.marksText)
-                .font(.system(size: 13))
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .frame(maxWidth: .infinity)
-            if viewModel.showsSubmit {
-                CSPrimaryButton(title: "Submit Quiz", isEnabled: !viewModel.isSubmitting, tint: .green,
-                                height: 46, expands: false, action: viewModel.didTapSubmit)
-            } else {
-                CSPrimaryButton(title: "Next", systemImage: "chevron.right", height: 46, expands: false,
-                                imageTrailing: true, action: viewModel.didTapNext)
-            }
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 12)
-        .background(Color(.systemBackground).ignoresSafeArea(edges: .bottom))
-        .overlay(alignment: .top) { Divider() }
+    var bottomControl: some View {
+        QuizBottomControlView(
+            currentIndex: viewModel.currentIndex,
+            totalQuestions: viewModel.questions.count,
+            isFirstQuestion: viewModel.isFirstQuestion,
+            showsSubmit: viewModel.showsSubmit,
+            isSubmitEnabled: !viewModel.isSubmitting,
+            segments: viewModel.segments,
+            onPrevious: viewModel.didTapPrevious,
+            onNext: viewModel.didTapNext,
+            onSelectQuestion: viewModel.didSelectQuestion(at:),
+            onSubmit: viewModel.didTapSubmit
+        )
     }
 }
 
