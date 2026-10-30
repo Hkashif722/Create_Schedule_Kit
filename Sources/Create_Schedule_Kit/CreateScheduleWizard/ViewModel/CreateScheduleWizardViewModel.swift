@@ -4,8 +4,10 @@
 //
 //  Coordinator for the multi-step Create Schedule wizard. Owns the shared
 //  `ScheduleDraft` and drives step navigation. The Feedback step is org-configurable
-//  (`ConfigurableParameters/GetValue/Schfbk`) — when it is off the wizard is two steps
-//  and Venue submits the schedule.
+//  (`ConfigurableParameters/GetValue/Schfbk`) — when it is off Venue submits the schedule.
+//
+//  Quiz is always the last step and comes after the submit: the Pre/Post quiz API is keyed
+//  by schedule id, which only exists once the schedule is saved.
 //
 
 import SwiftUI
@@ -15,12 +17,38 @@ import NetworkService
 
 final class CreateScheduleWizardViewModel: BaseViewModel {
 
+    enum Step: Equatable {
+        case basics, venue, feedback, quiz
+
+        var label: String {
+            switch self {
+            case .basics:   return "Basics"
+            case .venue:    return "Venue"
+            case .feedback: return "Feedback"
+            case .quiz:     return "Quiz"
+            }
+        }
+    }
+
     // MARK: - State
     let draft = ScheduleDraft()
     let mode: WizardMode
-    var stepLabels: [String] { isFeedbackEnabled ? ["Basics", "Venue", "Feedback"] : ["Basics", "Venue"] }
-    var totalSteps: Int { stepLabels.count }
+    var steps: [Step] { isFeedbackEnabled ? [.basics, .venue, .feedback, .quiz] : [.basics, .venue, .quiz] }
+    var stepLabels: [String] { steps.map(\.label) }
+    var totalSteps: Int { steps.count }
     @Published var currentStep: Int = 1
+
+    var currentStepKind: Step? {
+        steps.indices.contains(currentStep - 1) ? steps[currentStep - 1] : nil
+    }
+
+    /// The step whose primary action saves the schedule — the one right before Quiz.
+    private var submitStep: Int { totalSteps - 1 }
+
+    var isOnQuizStep: Bool { currentStepKind == .quiz }
+
+    /// Set once the schedule exists (created and looked up by code, or the one being edited).
+    @Published private(set) var savedScheduleID: Int?
 
     /// Schedule-level feedback is an org setting. Starts off and is only turned on by an
     /// explicit "Yes" from the config API — a failed lookup leaves the step hidden rather
@@ -78,14 +106,18 @@ final class CreateScheduleWizardViewModel: BaseViewModel {
 extension CreateScheduleWizardViewModel {
 
     func goNext() {
-        if currentStep < totalSteps {
+        if currentStep < submitStep {
             currentStep += 1
-        } else {
+        } else if currentStep == submitStep {
             finish()
+        } else {
+            finishQuizStep()
         }
     }
 
     func goBack() {
+        // The schedule is already saved behind the Quiz step; there is nothing to go back to.
+        guard !isOnQuizStep else { return }
         if currentStep > 1 {
             currentStep -= 1
         } else {
@@ -143,12 +175,15 @@ extension CreateScheduleWizardViewModel {
                 toast = Toast(style: .error, message: response.serverMessage ?? "Could not create schedule.")
                 return
             }
+            // The create body answers no id, so the quiz step looks the new schedule up by its code.
+            loadingState = .loading(message: "Preparing quiz step...")
+            let scheduleID = await resolveScheduleID(code: draft.scheduleCode)
             loadingState = .none
-            if !permissions.canNominate
-                || ScheduleDateRules.isStartInPast(startDate: draft.startDate, startTime: draft.startTime) {
-                completeAndDismiss()
+            if let scheduleID {
+                savedScheduleID = scheduleID
+                currentStep = totalSteps
             } else {
-                promptNomination()
+                finishCreate()
             }
         } catch let error as APIError {
             // `handleAPIError` only understands a converted error; handed the raw one it
@@ -261,17 +296,79 @@ extension CreateScheduleWizardViewModel {
                 return
             }
             loadingState = .none
-            // No nomination prompt on update — the list shows the success toast
-            // (a toast set on this dismissed screen would never render).
-            let event = CreateScheduleKitEvent.scheduleUpdated(scheduleCode: draft.scheduleCode)
-            eventPublisher.publish(event)
-            onFinish?(event)
-            router.dismissScreen()
+            if case .edit(let scheduleID) = mode {
+                savedScheduleID = scheduleID
+                currentStep = totalSteps
+            } else {
+                finishUpdate()
+            }
         } catch let error as APIError {
             handleAPIError(error.toUIError(), resetLoadingState: true, showToast: true)
         } catch {
             handleAPIError(error, resetLoadingState: true, showToast: true)
         }
+    }
+}
+
+// MARK: - Quiz step
+extension CreateScheduleWizardViewModel {
+
+    /// What the Quiz step needs. Nil until the schedule is saved.
+    var quizNavModel: NavigationViewModel.ScheduleQuizNavModel? {
+        guard let savedScheduleID else { return nil }
+        let name = draft.module?.title ?? draft.course?.title ?? ""
+        return .init(scheduleID: savedScheduleID, scheduleCode: draft.scheduleCode, displayName: name)
+    }
+
+    /// Finish on the Quiz step: create goes on to the nomination prompt as before, edit hands
+    /// the list its "updated" event.
+    func finishQuizStep() {
+        if mode.isEdit {
+            finishUpdate()
+        } else {
+            finishCreate()
+        }
+    }
+
+    private func finishCreate() {
+        if !permissions.canNominate
+            || ScheduleDateRules.isStartInPast(startDate: draft.startDate, startTime: draft.startTime) {
+            completeAndDismiss()
+        } else {
+            promptNomination()
+        }
+    }
+
+    /// No nomination prompt on update — the list shows the success toast (a toast set on this
+    /// dismissed screen would never render).
+    private func finishUpdate() {
+        let event = CreateScheduleKitEvent.scheduleUpdated(scheduleCode: draft.scheduleCode)
+        eventPublisher.publish(event)
+        onFinish?(event)
+        router.dismissScreen()
+    }
+
+    /// `GetScheduleData` filtered on the `scheduleCode` column. Nil on any failure — the wizard
+    /// then skips the Quiz step and quizzes can still be added from the schedule card.
+    @MainActor
+    private func resolveScheduleID(code: String) async -> Int? {
+        let code = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !code.isEmpty else { return nil }
+        let payload = ScheduleListDataModel.ListPayload(
+            page: 1,
+            pageSize: 10,
+            search: ScheduleListDataModel.FilterColumn.scheduleCode.apiValue,
+            searchText: code,
+            showAllData: "true"
+        )
+        let schedules = try? await ApiService.shared.requestPostHeader(
+            type: [ScheduleListDataModel.Schedule].self,
+            model: ScheduleListDataModel.GetScheduleDataRequest(),
+            payload: payload
+        )
+        return schedules?.first {
+            ($0.scheduleCode ?? "").caseInsensitiveCompare(code) == .orderedSame
+        }?.id
     }
 }
 

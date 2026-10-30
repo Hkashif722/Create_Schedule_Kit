@@ -155,4 +155,73 @@ extension NavigationViewModel {
         let date: Date?
         let statusCode: String?
     }
+
+    // MARK: - Schedule quiz (manager)
+
+    // Pre/Post slots for one schedule. Pushed standalone from a card or Schedule Details; the
+    // wizard embeds the same view as its last step. `displayName` seeds default quiz titles.
+    struct ScheduleQuizNavModel {
+        let scheduleID: Int
+        let scheduleCode: String
+        let displayName: String
+    }
+
+    struct QuizEditorNavModel {
+        let quizID: Int
+        let kind: ScheduleQuizDataModel.QuizKind
+        /// Fired after every server-side change, so the slot cards behind refresh.
+        let onChanged: () -> Void
+        /// True while the other slot has no quiz — drives the "Add Post-Schedule Quiz?" prompt.
+        let isOtherSlotEmpty: () -> Bool
+        /// "Yes, Add …" on that prompt. The editor pops itself first.
+        let onAddOtherQuiz: () -> Void
+    }
+
+    struct QuizSettingsNavModel {
+        let kind: ScheduleQuizDataModel.QuizKind
+        let mode: QuizSettingsDataModel.Mode
+        let initial: QuizSettingsDataModel.Form
+        /// Locked quizzes keep pass % and duration frozen.
+        let isLocked: Bool
+        let onDone: (QuizSettingsDataModel.Outcome) -> Void
+        let onCancel: () -> Void
+    }
+
+    struct QuizPackagePickerNavModel {
+        let attachedIDs: Set<Int>
+        let onAdd: ([ScheduleQuizDataModel.PackageListItem]) -> Void
+    }
+
+    struct QuizBankPickerNavModel {
+        /// Sent as `quizId` so the server flags rows already saved in this quiz.
+        let quizID: Int
+        /// Rows already in the editor (saved or not), packaged or direct.
+        let blockedIDs: Set<Int>
+        let onAdd: ([ScheduleQuizDataModel.BankQuestion]) -> Void
+    }
+
+    struct QuizInlineQuestionNavModel {
+        let onSaved: (QuizDraft.Question) -> Void
+    }
+
+    // MARK: - Schedule quiz (learner)
+
+    // Full-screen player. Start runs inside it (Start is also resume), so it only needs the
+    // quiz id. `onClose` fires however it ends so the cards behind refresh.
+    struct LearnerQuizPlayerNavModel {
+        let quizID: Int
+        let kind: ScheduleQuizDataModel.QuizKind
+        let title: String
+        let onClose: () -> Void
+        /// Start said 409 AttemptExist: the player closes and the cards open this slot's result.
+        var onViewResult: (() -> Void)? = nil
+    }
+
+    // "View result" from a submitted card. `onResume` covers a 409 NotCompleted answer.
+    struct LearnerQuizResultNavModel {
+        let attemptID: Int
+        let kind: ScheduleQuizDataModel.QuizKind
+        let title: String
+        let onResume: (() -> Void)?
+    }
 }

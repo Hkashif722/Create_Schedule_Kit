@@ -36,6 +36,8 @@ struct CreateScheduleWizardView: View {
         .background(Color.scheduleBackground.ignoresSafeArea())
         .navigationTitle(viewModel.navTitle)
         .navigationBarTitleDisplayMode(.inline)
+        // schedule is already saved on the Quiz step. system back there would skip the finish event
+        .navigationBarBackButtonHidden(viewModel.isOnQuizStep)
         .loadingOverlayViewPkg(state: viewModel.loadingState)
         .toastViewPkg(toast: $viewModel.toast)
     }
@@ -48,8 +50,8 @@ struct CreateScheduleWizardView: View {
         if !viewModel.isReady {
             Color.clear
         } else {
-            switch viewModel.currentStep {
-            case 1:
+            switch viewModel.currentStepKind {
+            case .basics:
                 ScheduleBasicDetailsView(
                     router: router,
                     draft: viewModel.draft,
@@ -57,18 +59,18 @@ struct CreateScheduleWizardView: View {
                     onBack: viewModel.goBack,
                     onContinue: viewModel.goNext
                 )
-            case 2:
+            case .venue:
                 ScheduleLogisticsView(
                     router: router,
                     draft: viewModel.draft,
                     isEditMode: viewModel.mode.isEdit,
-                    // With feedback switched off Venue is the last step, so its primary
-                    // action submits instead of advancing.
+                    // With feedback switched off Venue is the submit step, so its primary
+                    // action saves the schedule instead of advancing.
                     isFinalStep: !viewModel.isFeedbackEnabled,
                     onBack: viewModel.goBack,
                     onContinue: viewModel.goNext
                 )
-            case 3:
+            case .feedback:
                 ScheduleFeedbackView(
                     router: router,
                     draft: viewModel.draft,
@@ -77,7 +79,15 @@ struct CreateScheduleWizardView: View {
                     onContinue: viewModel.goNext,
                     onSkipCreate: viewModel.createSchedule
                 )
-            default:
+            case .quiz:
+                if let navModel = viewModel.quizNavModel {
+                    ScheduleQuizView(
+                        router: router,
+                        navModel: navModel,
+                        presentation: .wizardStep(onFinish: viewModel.goNext)
+                    )
+                }
+            case nil:
                 EmptyView()
             }
         }

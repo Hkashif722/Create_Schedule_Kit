@@ -63,4 +63,7 @@ extension SchedulePermissions {
     /// Always allowed.
     var canViewSchedule: Bool { true }
 
+    /// Building, publishing and deleting a schedule's Pre/Post quiz — owner work, like edit.
+    var canManageQuiz: Bool { !isExternalTrainer }
+
 }

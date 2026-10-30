@@ -29,6 +29,18 @@ enum AppNavigationDestination {
     case attendanceQRScanner(NavigationViewModel.AttendanceQRScannerNavModel)
     case scheduleQRCode(NavigationViewModel.ScheduleQRCodeNavModel)
     case cancelSchedule(NavigationViewModel.CancelScheduleNavModel)
+
+    // schedule quiz (manager)
+    case scheduleQuiz(NavigationViewModel.ScheduleQuizNavModel)
+    case quizEditor(NavigationViewModel.QuizEditorNavModel)
+    case quizSettings(NavigationViewModel.QuizSettingsNavModel)
+    case quizPackagePicker(NavigationViewModel.QuizPackagePickerNavModel)
+    case quizBankPicker(NavigationViewModel.QuizBankPickerNavModel)
+    case quizInlineQuestion(NavigationViewModel.QuizInlineQuestionNavModel)
+
+    // learner quiz
+    case learnerQuizPlayer(NavigationViewModel.LearnerQuizPlayerNavModel)
+    case learnerQuizResult(NavigationViewModel.LearnerQuizResultNavModel)
 }
 
 // MARK: - Navigation Protocol Conformance
@@ -116,6 +128,51 @@ extension AppNavigationDestination: NavigationProtocol {
         case .cancelSchedule(let navModel):
             showFullSheetWithDragGesture(router) { router in
                 CancelScheduleView(router: router, navModel: navModel)
+            }
+
+        // schedule quiz (manager)
+        case .scheduleQuiz(let navModel):
+            pushScreen(router) { router in
+                ScheduleQuizView(router: router, navModel: navModel, presentation: .standalone)
+            }
+
+        case .quizEditor(let navModel):
+            pushScreen(router) { router in
+                QuizEditorView(router: router, navModel: navModel)
+            }
+
+        // The pickers and forms all host text input, so large detent for the same keyboard
+        // reason as Cancel Schedule.
+        case .quizSettings(let navModel):
+            showFullSheetWithDragGesture(router) { router in
+                QuizSettingsSheet(router: router, navModel: navModel)
+            }
+
+        case .quizPackagePicker(let navModel):
+            showFullSheetWithDragGesture(router) { router in
+                QuizPackagePickerSheet(router: router, navModel: navModel)
+            }
+
+        case .quizBankPicker(let navModel):
+            showFullSheetWithDragGesture(router) { router in
+                QuizBankPickerSheet(router: router, navModel: navModel)
+            }
+
+        case .quizInlineQuestion(let navModel):
+            showFullSheetWithDragGesture(router) { router in
+                QuizInlineQuestionSheet(router: router, navModel: navModel)
+            }
+
+        // learner quiz
+        // Full screen so a swipe can't drop a timed attempt mid-question.
+        case .learnerQuizPlayer(let navModel):
+            pushFullScreenCover(router) { router in
+                QuizPlayerView(router: router, navModel: navModel)
+            }
+
+        case .learnerQuizResult(let navModel):
+            pushFullScreenCover(router) { router in
+                QuizResultView(router: router, navModel: navModel)
             }
         }
     }

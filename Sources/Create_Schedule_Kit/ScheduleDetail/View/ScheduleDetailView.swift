@@ -40,6 +40,8 @@ struct ScheduleDetailView: View {
 
                     trainersSection
 
+                    quizSection
+
                     nomineesSection
                 }
                 .padding()
@@ -106,6 +108,15 @@ private extension ScheduleDetailView {
                         TrainerCardView(name: trainer.name, trainerType: trainer.type)
                     }
                 }
+            }
+        }
+    }
+
+    @ViewBuilder
+    var quizSection: some View {
+        if viewModel.canManageQuiz, let quizzes = viewModel.quizzes {
+            section("PRE & POST QUIZ") {
+                ScheduleQuizSummaryCard(quizzes: quizzes, onManage: viewModel.didTapManageQuiz)
             }
         }
     }

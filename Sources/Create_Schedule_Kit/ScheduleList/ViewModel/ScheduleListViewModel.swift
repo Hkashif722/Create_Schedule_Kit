@@ -94,6 +94,7 @@ extension ScheduleListViewModel {
     var canCreateSchedule: Bool { permissions.canCreateSchedule }
     var canEditSchedule: Bool { permissions.canEditSchedule }
     var canCancelSchedule: Bool { permissions.canCancelSchedule }
+    var canManageQuiz: Bool { permissions.canManageQuiz }
 
     func participantCount(for schedule: Schedule) -> Int {
         participantCounts[schedule.id] ?? schedule.participants
@@ -256,6 +257,18 @@ extension ScheduleListViewModel {
         NavigationService.shared.navigate(
             using: router,
             to: AppNavigationDestination.editWizard(scheduleID: schedule.id)
+        )
+    }
+
+    func didTapQuiz(_ schedule: Schedule) {
+        guard permissions.canManageQuiz else { return }
+        NavigationService.shared.navigate(
+            using: router,
+            to: AppNavigationDestination.scheduleQuiz(.init(
+                scheduleID: schedule.id,
+                scheduleCode: schedule.scheduleCode ?? "",
+                displayName: schedule.moduleName ?? schedule.courseName ?? ""
+            ))
         )
     }
 

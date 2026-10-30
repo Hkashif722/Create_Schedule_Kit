@@ -28,6 +28,9 @@ final class ScheduleDetailViewModel: BaseViewModel, PaginatableViewModel {
 
     @Published private(set) var details: EditScheduleDataModel.ScheduleDetailsResponse?
 
+    /// Pre/Post quiz slots. Nil until loaded, or when the role can't manage quizzes.
+    @Published private(set) var quizzes: ScheduleQuizDataModel.ScheduleQuizzes?
+
     private var hasLoaded = false
 
     // MARK: - Init
@@ -47,6 +50,8 @@ extension ScheduleDetailViewModel {
 
     /// Nominee deletion requires both the role permission and the `ATTNOM_DEL` config flag.
     var canDeleteNominees: Bool { canNominate && isDeleteEnabled }
+
+    var canManageQuiz: Bool { permissions.canManageQuiz && !schedule.isCancelled }
 
     var deliveryText: String {
         ScheduleListDataModel.Schedule.deliveryText(
@@ -79,7 +84,11 @@ extension ScheduleDetailViewModel {
 extension ScheduleDetailViewModel {
 
     func onAppear() {
-        guard !hasLoaded else { return }
+        guard !hasLoaded else {
+            // Back from the quiz screen: only the quiz summary can have moved.
+            Task { [weak self] in await self?.fetchQuizzes() }
+            return
+        }
         hasLoaded = true
         Task { [weak self] in await self?.loadEverything() }
     }
@@ -90,7 +99,19 @@ extension ScheduleDetailViewModel {
         async let count: Void = fetchNomineesCount()
         async let detail: Void = fetchDetails()
         async let deleteFlag: Void = fetchDeleteFlag()
-        _ = await (list, count, detail, deleteFlag)
+        async let quiz: Void = fetchQuizzes()
+        _ = await (list, count, detail, deleteFlag, quiz)
+    }
+
+    /// Silent: the section just stays hidden when the quiz API isn't reachable for this role.
+    @MainActor
+    private func fetchQuizzes() async {
+        guard canManageQuiz else { return }
+        guard let response = try? await ApiService.shared.requestGetHeader(
+            type: ScheduleQuizDataModel.ScheduleQuizzes.self,
+            model: ScheduleQuizDataModel.GetScheduleQuizzesRequest(scheduleID: schedule.id)
+        ) else { return }
+        quizzes = response
     }
 
     func loadMoreIfNeeded(currentItem: Nominee) {
@@ -120,6 +141,18 @@ extension ScheduleDetailViewModel {
             moduleID: schedule.moduleId ?? 0
         )
         NavigationService.shared.navigate(using: router, to: AppNavigationDestination.scheduleUsers(navModel))
+    }
+
+    func didTapManageQuiz() {
+        guard canManageQuiz else { return }
+        NavigationService.shared.navigate(
+            using: router,
+            to: AppNavigationDestination.scheduleQuiz(.init(
+                scheduleID: schedule.id,
+                scheduleCode: schedule.scheduleCode ?? "",
+                displayName: schedule.moduleName ?? schedule.courseName ?? ""
+            ))
+        )
     }
 
     func didTapAddNominee() {

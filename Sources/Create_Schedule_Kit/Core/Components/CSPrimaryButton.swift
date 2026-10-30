@@ -15,15 +15,21 @@ struct CSPrimaryButton: View {
     let title: String
     var systemImage: String? = nil
     var isEnabled: Bool = true
+    var tint: Color = CSTheme.primaryColor
+    var height: CGFloat = 54
+    /// false = hug the label (footer buttons sharing a row with other content)
+    var expands: Bool = true
+    var imageTrailing: Bool = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            buttonLabel(title: title, systemImage: systemImage)
-                .frame(maxWidth: .infinity)
-                .frame(height: 54)
-                .background(isEnabled ? CSTheme.primaryColor : CSTheme.primaryColor.opacity(0.4))
-                .foregroundColor(CSTheme.primaryColor.getDynamicTextColor)
+            buttonLabel(title: title, systemImage: systemImage, imageTrailing: imageTrailing)
+                .padding(.horizontal, expands ? 0 : 16)
+                .frame(maxWidth: expands ? .infinity : nil)
+                .frame(height: height)
+                .background(isEnabled ? tint : tint.opacity(0.4))
+                .foregroundColor(tint.getDynamicTextColor)
                 .cornerRadius(14)
         }
         .buttonStyle(.plain)
@@ -55,20 +61,26 @@ struct CSNavButton: View {
 struct CSSecondaryButton: View {
     let title: String
     var systemImage: String? = nil
+    var isEnabled: Bool = true
+    var height: CGFloat = 54
+    var expands: Bool = true
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             buttonLabel(title: title, systemImage: systemImage)
-                .frame(maxWidth: .infinity)
-                .frame(height: 54)
+                .padding(.horizontal, expands ? 0 : 16)
+                .frame(maxWidth: expands ? .infinity : nil)
+                .frame(height: height)
                 .foregroundColor(CSTheme.primaryColor)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14)
                         .stroke(CSTheme.primaryColor, lineWidth: 1.5)
                 )
+                .opacity(isEnabled ? 1 : 0.4)
         }
         .buttonStyle(.plain)
+        .disabled(!isEnabled)
     }
 }
 

@@ -20,6 +20,8 @@ struct ScheduleCardView: View {
     /// Roles that cannot own a schedule (an external trainer) lose these two icons entirely.
     var canEdit: Bool = true
     var canCancel: Bool = true
+    /// Pre/Post quiz authoring. Nil hides the action (same roles as edit).
+    var onQuiz: (() -> Void)? = nil
 
     private var hasParticipants: Bool { participants > 0 }
 
@@ -146,6 +148,10 @@ struct ScheduleCardView: View {
             if !isCancelled {
                 actionButton(title: "Attendance", systemImage: "checklist",
                              tint: CSTheme.primaryColor, isEnabled: true, action: onAttendance)
+                if let onQuiz {
+                    actionButton(title: "Quiz", systemImage: "list.bullet.rectangle",
+                                 tint: CSTheme.primaryColor, isEnabled: true, action: onQuiz)
+                }
             }
         }
     }
@@ -155,7 +161,10 @@ struct ScheduleCardView: View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Image(systemName: systemImage).font(.system(size: 14, weight: .semibold))
-                Text(title).font(.system(size: 14, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
             .frame(maxWidth: .infinity)
             .frame(height: 46)

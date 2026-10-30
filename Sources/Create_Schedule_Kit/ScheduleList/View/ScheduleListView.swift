@@ -168,7 +168,8 @@ private extension ScheduleListView {
                         onEdit: { viewModel.didTapEdit(schedule) },
                         onCancel: { viewModel.didTapCancel(schedule) },
                         canEdit: viewModel.canEditSchedule,
-                        canCancel: viewModel.canCancelSchedule
+                        canCancel: viewModel.canCancelSchedule,
+                        onQuiz: viewModel.canManageQuiz ? { viewModel.didTapQuiz(schedule) } : nil
                     )
                     .onAppear { viewModel.loadMoreIfNeeded(currentItem: schedule) }
                 }

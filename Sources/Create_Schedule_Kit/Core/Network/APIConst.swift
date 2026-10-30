@@ -88,6 +88,25 @@ internal struct APIConst {
     static let configurableValues = "ConfigurableValues"
     static let attdStatus = "ATTDSTATUS"
 
+    // MARK: - ILTScheduleQuiz (manager authoring, Assessment API on the same host)
+    static let iltScheduleQuiz = "ILTScheduleQuiz"
+    static let scheduleSegment = "Schedule"
+    static let publish = "Publish"
+    static let getBankQuestions = "GetBankQuestions"
+    static let inlineQuestion = "InlineQuestion"
+
+    // MARK: - QuestionPackage
+    static let questionPackage = "QuestionPackage"
+    static let getPackages = "GetPackages"
+
+    // MARK: - ILTScheduleQuizAttempt (learner)
+    static let iltScheduleQuizAttempt = "ILTScheduleQuizAttempt"
+    static let quizSegment = "Quiz"
+    static let start = "Start"
+    static let answer = "Answer"
+    static let submit = "Submit"
+    static let result = "Result"
+
     // MARK: - Static assets
     static let timezonesJsonPath = "/assets/json_data/timezones.json"
 }
