@@ -29,6 +29,11 @@ let package = Package(
         .package(
             url: "https://github.com/Hkashif722/PopoverUtility.git",
             .upToNextMinor(from: "1.0.0")
+        ),
+        // same branch IOS-OGT_Package pins. two branches of one pkg = spm wont resolve the app
+        .package(
+            url: "https://github.com/Hkashif722/AssessmenyKitPackage.git",
+            branch: "fix/add-question-for-option-type"
         )
     ],
     targets: [
@@ -37,7 +42,8 @@ let package = Package(
             dependencies: [
                 .product(name: "NetworkService", package: "IOS_APIManager"),
                 .product(name: "SwiftUIUtilities", package: "SwiftUIUtility"),
-                .product(name: "PopoverUtility", package: "PopoverUtility")
+                .product(name: "PopoverUtility", package: "PopoverUtility"),
+                .product(name: "AssessmentKit", package: "AssessmenyKitPackage")
             ],
             resources: [
                 .process("Resources")

@@ -54,12 +54,12 @@ struct QuizReviewRowView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 answerLine(
-                    label: "Your answer:",
+                    label: "Your answer",
                     value: question.selectedText ?? "Not answered",
                     color: question.selectedText == nil ? .secondary : (question.isCorrect ? .green : .red)
                 )
                 if !question.isCorrect, !question.correctText.isEmpty {
-                    answerLine(label: "Correct:", value: question.correctText, color: .green)
+                    answerLine(label: "Correct", value: question.correctText, color: .green)
                 }
             }
             .padding(12)

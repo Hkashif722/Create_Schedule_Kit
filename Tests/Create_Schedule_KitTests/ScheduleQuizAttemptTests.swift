@@ -109,15 +109,39 @@ import Testing
         #expect(card.state == .notStarted)
     }
 
-    @Test func ineligibilityWinsOverState() throws {
+    @Test func onlyANotStartedCardIsLocked() throws {
         let card = try decode(DM.QuizCard.self, """
         {"quizId": 1, "state": "NotStarted", "isEligible": false,
          "ineligibleReason": "Attendance must be marked Completed."}
         """)
         #expect(card.status == .ineligible(reason: "Attendance must be marked Completed."))
 
-        let blank = try decode(DM.QuizCard.self, #"{"quizId": 1, "state": "InProgress", "isEligible": false, "ineligibleReason": "  "}"#)
+        let blank = try decode(DM.QuizCard.self, #"{"quizId": 1, "state": "NotStarted", "isEligible": false, "ineligibleReason": "  "}"#)
         #expect(blank.status == .ineligible(reason: "You can't take this quiz right now."))
+
+        // web keeps Resume for an open attempt whatever the flag says
+        let open = try decode(DM.QuizCard.self, #"{"quizId": 1, "state": "InProgress", "isEligible": false, "remainingSeconds": 30}"#)
+        #expect(open.status == .inProgress(remainingSeconds: 30))
+    }
+
+    /// Live UAT `GET ILTScheduleQuizAttempt/Schedule/4811`: a taken quiz comes back ineligible.
+    @Test func aTakenQuizStillOffersItsResult() throws {
+        let cards = try decode(DM.ScheduleQuizCards.self, """
+        {"scheduleId":4811,"preQuiz":{"quizId":108,"quizTypeId":1,"quizType":"PreQuiz",
+         "title":"9080_vilt testing course — pre check","instructions":"Answer every question before the session starts.",
+         "totalQuestions":7,"totalMarks":44.00,"passPercentage":40.00,"durationMinutes":5,"isEligible":false,
+         "ineligibleReason":"You have already taken this quiz.","state":"Submitted","attemptId":83,"attemptsRemaining":0,
+         "remainingSeconds":null,"score":{"totalMarks":44.00,"obtainedMarks":0.00,"percentage":0.00,"isPassed":false,
+         "correctCount":0,"wrongCount":0,"unansweredCount":7}},"postQuiz":null}
+        """)
+        #expect(cards.slots.map(\.kind) == [.pre])
+        let card = try #require(cards.preQuiz)
+        guard case .submitted(let score?) = card.status else {
+            Issue.record("expected a submitted card with a score, got \(card.status)")
+            return
+        }
+        #expect(score.unansweredCount == 7)
+        #expect(card.attemptId == 83)
     }
 
     @Test func cardStatusFollowsTheAttemptState() throws {
@@ -285,10 +309,11 @@ import Testing
         #expect(DM.Countdown.clockText(-5) == "00:00")
     }
 
-    @Test func optionLettersRunAlphabetically() {
-        #expect(DM.optionLetter(0) == "A")
-        #expect(DM.optionLetter(3) == "D")
-        #expect(DM.optionLetter(26) == "27")
+    @Test func optionIDsMapToStableUUIDs() {
+        let option = DM.PlayerOption(id: 1806, optionText: "p")
+        #expect(option.stableID == DM.PlayerOption(id: 1806, optionText: "changed").stableID)
+        #expect(option.stableID != DM.PlayerOption(id: 1807, optionText: "p").stableID)
+        #expect(option.stableID.uuidString == "00000000-0000-0000-0000-000000001806")
     }
 
     // MARK: - Errors

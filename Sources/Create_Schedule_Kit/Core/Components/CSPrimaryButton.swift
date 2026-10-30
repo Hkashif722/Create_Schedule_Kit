@@ -33,6 +33,8 @@ struct CSPrimaryButton: View {
                 .cornerRadius(14)
         }
         .buttonStyle(.plain)
+        // hug = hug. else a greedy neighbour squeezes it and "Submit Quiz" wraps
+        .fixedSize(horizontal: !expands, vertical: false)
         .disabled(!isEnabled)
     }
 }
@@ -80,6 +82,7 @@ struct CSSecondaryButton: View {
                 .opacity(isEnabled ? 1 : 0.4)
         }
         .buttonStyle(.plain)
+        .fixedSize(horizontal: !expands, vertical: false)
         .disabled(!isEnabled)
     }
 }

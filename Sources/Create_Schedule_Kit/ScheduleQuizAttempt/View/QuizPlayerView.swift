@@ -9,6 +9,7 @@
 import SwiftUI
 import SwiftfulRouting
 import SwiftUIUtilities
+import AssessmentKit
 
 struct QuizPlayerView: View {
 
@@ -116,7 +117,11 @@ private extension QuizPlayerView {
             playingView
 
         case .finished(let result):
-            QuizResultContentView(result: result, onDone: viewModel.didTapDone)
+            QuizResultContentView(
+                result: result,
+                notice: viewModel.isTimeUp ? "Time is up. Your quiz has been submitted." : nil,
+                onDone: viewModel.didTapDone
+            )
         }
     }
 
@@ -155,14 +160,16 @@ private extension QuizPlayerView {
                     .padding(.horizontal)
                     .padding(.top, 12)
             }
-            ScrollView {
+            // shared option list brings its own ScrollView. wrap it in another and scroll breaks
+            Group {
                 if let question = viewModel.currentQuestion {
                     questionBody(question)
                         .padding()
+                } else {
+                    Spacer()
                 }
             }
-            // new question starts at the top, not wherever the last one was scrolled to
-            .id(viewModel.currentQuestion?.attemptQuestionId)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             footer
         }
     }
@@ -203,12 +210,9 @@ private extension QuizPlayerView {
     }
 
     func questionBody(_ question: DM.PlayerQuestion) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(question.questionText)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
+                SharedAssessmentHeaderView(contentType: "", questionText: AttributedString(question.questionText))
                 if let instruction = question.learnerInstruction?.trimmingCharacters(in: .whitespacesAndNewlines),
                    !instruction.isEmpty {
                     Text(instruction)
@@ -221,18 +225,17 @@ private extension QuizPlayerView {
                         .foregroundColor(CSTheme.primaryColor)
                 }
             }
-            VStack(spacing: 10) {
-                ForEach(Array(question.options.enumerated()), id: \.element.id) { index, option in
-                    QuizOptionRowView(
-                        letter: DM.optionLetter(index),
-                        text: option.optionText,
-                        isSelected: viewModel.isSelected(option.id),
-                        isMultiple: question.isMultiple,
-                        isEnabled: viewModel.acceptsAnswers,
-                        onTap: { viewModel.didSelectOption(option) }
-                    )
-                }
-            }
+            SharedAssessmentSelectionTypeView(
+                questionID: question.attemptQuestionId,
+                contentType: .objective,
+                options: viewModel.currentOptions,
+                optionType: viewModel.currentOptionType,
+                isSelected: { $0.isSelected },
+                handleSelection: { viewModel.didSelectOption($0) },
+                getTitle: { $0.optionText ?? $0.title }
+            )
+            .disabled(!viewModel.acceptsAnswers)
+            .opacity(viewModel.acceptsAnswers ? 1 : 0.6)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

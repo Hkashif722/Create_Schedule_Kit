@@ -205,7 +205,7 @@ enum ScheduleQuizAttemptDataModel {
         }
     }
 
-    /// What a card offers. Eligibility wins over state, so a blocked learner never sees Start.
+    /// What a card offers. Only a NotStarted card can be locked.
     enum CardStatus: Equatable {
         case ineligible(reason: String)
         case notStarted
@@ -490,14 +490,16 @@ extension ScheduleQuizAttemptDataModel.ScheduleQuizCards {
 extension ScheduleQuizAttemptDataModel.QuizCard {
 
     var status: ScheduleQuizAttemptDataModel.CardStatus {
-        if !isEligible {
-            let reason = ineligibleReason?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            return .ineligible(reason: reason.isEmpty ? "You can't take this quiz right now." : reason)
-        }
         switch state {
-        case .notStarted: return .notStarted
-        case .inProgress: return .inProgress(remainingSeconds: remainingSeconds)
+        // api flags a taken quiz isEligible=false ("already taken"). still has a result to show, same as web
         case .submitted:  return .submitted(score: score)
+        case .inProgress: return .inProgress(remainingSeconds: remainingSeconds)
+        case .notStarted:
+            guard isEligible else {
+                let reason = ineligibleReason?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return .ineligible(reason: reason.isEmpty ? "You can't take this quiz right now." : reason)
+            }
+            return .notStarted
         }
     }
 
@@ -505,12 +507,11 @@ extension ScheduleQuizAttemptDataModel.QuizCard {
     var durationText: String { durationMinutes.map { "\($0) min" } ?? "Untimed" }
 }
 
-extension ScheduleQuizAttemptDataModel {
+extension ScheduleQuizAttemptDataModel.PlayerOption {
 
-    /// "A", "B", ... for option rows. Numbers past "Z", which no quiz reaches.
-    static func optionLetter(_ index: Int) -> String {
-        guard (0..<26).contains(index), let scalar = UnicodeScalar(65 + index) else { return "\(index + 1)" }
-        return String(Character(scalar))
+    /// Stable per option, so the shared option list keeps row identity across ticks.
+    var stableID: UUID {
+        UUID(uuidString: String(format: "00000000-0000-0000-0000-%012ld", max(0, id))) ?? UUID()
     }
 }
 

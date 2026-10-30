@@ -22,7 +22,9 @@ struct LearnerQuizTopBar<Trailing: View>: View {
                 .lineLimit(1)
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 8)
+            // title truncates, timer + Exit dont. else it reads "09..." and "Exi/t"
             trailing
+                .fixedSize()
         }
         .padding(.horizontal)
         .padding(.vertical, 12)

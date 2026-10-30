@@ -26,12 +26,12 @@ public struct Create_Schedule_Kit: Sendable {
         ScheduleListView(router: router, onFinish: onFinish)
     }
 
-    /// Learner entry point: the schedule's Pre/Post quiz cards, with start / resume / result.
-    /// Push it or show it full screen; it draws its own header, and back dismisses it.
+    /// Learner entry point: the schedule's "Live Quiz" rows (Pre / Post) with start / resume /
+    /// result. Drop it inline on the schedule card; it draws nothing when the schedule has no quiz.
     /// - Parameters:
-    ///   - router: Router supplied by the host (from SwiftfulRouting).
+    ///   - router: Router of the screen holding the card. The player and result open full screen on it.
     ///   - scheduleID: The ILT schedule id (the same id the host's schedule card holds).
-    @MainActor public func scheduleQuizzes(router: AnyRouter, scheduleID: Int) -> some View {
-        LearnerScheduleQuizView(router: router, scheduleID: scheduleID)
+    @MainActor public func liveQuiz(router: AnyRouter, scheduleID: Int) -> some View {
+        LiveQuizSectionView(router: router, scheduleID: scheduleID)
     }
 }

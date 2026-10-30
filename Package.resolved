@@ -1,6 +1,15 @@
 {
   "pins" : [
     {
+      "identity" : "assessmenykitpackage",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Hkashif722/AssessmenyKitPackage.git",
+      "state" : {
+        "branch" : "fix/add-question-for-option-type",
+        "revision" : "d535dbab10c339ef962968f482eaf27291e9d1b3"
+      }
+    },
+    {
       "identity" : "ios_apimanager",
       "kind" : "remoteSourceControl",
       "location" : "https://dev.azure.com/EnthralltechDevOps/IOS_APIManager/_git/IOS_APIManager",

@@ -154,6 +154,8 @@ enum ScheduleQuizDataModel {
         /// "Pre quiz" — editor header and dialogs.
         var shortTitle: String { self == .pre ? "Pre quiz" : "Post quiz" }
         var lowercasedTitle: String { self == .pre ? "pre quiz" : "post quiz" }
+        /// "Pre Quiz" — the learner's Live Quiz row.
+        var learnerTitle: String { self == .pre ? "Pre Quiz" : "Post Quiz" }
 
         var badgeForeground: Color {
             self == .pre ? Color(red: 0.55, green: 0.36, blue: 0.0) : Color(red: 0.42, green: 0.22, blue: 0.75)

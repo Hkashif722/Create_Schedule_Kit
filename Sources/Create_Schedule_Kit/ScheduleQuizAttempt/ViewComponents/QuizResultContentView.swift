@@ -13,6 +13,8 @@ struct QuizResultContentView: View {
     typealias DM = ScheduleQuizAttemptDataModel
 
     let result: DM.AttemptResult
+    /// Extra line under the banner, e.g. the time-up auto submit.
+    var notice: String? = nil
     let onDone: () -> Void
 
     private var outcome: DM.ResultOutcome { result.outcome }
@@ -30,6 +32,7 @@ struct QuizResultContentView: View {
             ScrollView {
                 VStack(spacing: 0) {
                     outcomeBanner
+                    metaRow
                     if outcome != .hidden, let score = result.score {
                         scoreTiles(score)
                         VStack(alignment: .leading, spacing: 18) {
@@ -38,7 +41,6 @@ struct QuizResultContentView: View {
                                 passPercentage: result.passPercentage,
                                 tint: tint
                             )
-                            metaLine
                             review
                         }
                         .padding(16)
@@ -63,9 +65,9 @@ private extension QuizResultContentView {
         case .failed:
             return ("xmark", "Quiz Not Passed", "Don't worry, your response has been recorded.")
         case .neutral:
-            return ("checkmark", "Quiz submitted", "Your response has been recorded successfully.")
+            return ("paperplane.fill", "Quiz Submitted", "Your response has been recorded successfully.")
         case .hidden:
-            return ("checkmark", "Quiz submitted", "Your response has been recorded. Results aren't shared for this quiz.")
+            return ("paperplane.fill", "Quiz Submitted", "Your response has been recorded. Results aren't shared for this quiz.")
         }
     }
 
@@ -90,6 +92,12 @@ private extension QuizResultContentView {
                 .font(.system(size: 13.5))
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
+            if let notice {
+                Label(notice, systemImage: "clock.badge.exclamationmark")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.orange)
+                    .multilineTextAlignment(.center)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
@@ -108,14 +116,12 @@ private extension QuizResultContentView {
                 tile(value: "\(score.correctCount)", caption: "CORRECT", color: .green)
                 Divider()
                 tile(value: "\(score.wrongCount)", caption: "INCORRECT", color: .red)
+                if score.unansweredCount > 0 {
+                    Divider()
+                    tile(value: "\(score.unansweredCount)", caption: "UNANSWERED", color: .primary)
+                }
             }
             .frame(height: 72)
-            if score.unansweredCount > 0 {
-                Text("\(score.unansweredCount) not answered")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-                    .padding(.bottom, 8)
-            }
             Divider()
         }
         .background(Color(.systemBackground))
@@ -131,21 +137,34 @@ private extension QuizResultContentView {
             Text(caption)
                 .font(.system(size: 10.5, weight: .semibold))
                 .foregroundColor(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder
-    var metaLine: some View {
-        let parts = [
-            result.submittedOn.map { "Submitted on \($0)" },
-            result.timeTakenSeconds.map { "Time taken \(DM.Countdown.clockText($0))" }
-        ].compactMap { $0 }
-        if !parts.isEmpty {
-            Text(parts.joined(separator: " · "))
-                .font(.system(size: 12.5))
+    var metaRow: some View {
+        if result.submittedOn != nil || result.timeTakenSeconds != nil {
+            VStack(spacing: 0) {
+                HStack(spacing: 8) {
+                    if let submittedOn = result.submittedOn {
+                        Text("Submitted on \(submittedOn)")
+                    }
+                    Spacer(minLength: 8)
+                    if let seconds = result.timeTakenSeconds {
+                        Text("Time taken: \(DM.Countdown.clockText(seconds))")
+                    }
+                }
+                .font(.system(size: 13))
                 .foregroundColor(.secondary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                Divider()
+            }
+            .background(Color(.systemBackground))
+            .accessibilityElement(children: .combine)
         }
     }
 

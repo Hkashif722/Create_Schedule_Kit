@@ -14,6 +14,7 @@ import Combine
 import SwiftfulRouting
 import SwiftUIUtilities
 import NetworkService
+import AssessmentKit
 
 final class QuizPlayerViewModel: BaseViewModel {
 
@@ -95,9 +96,24 @@ extension QuizPlayerViewModel {
     /// The last question, or any question once time is up, offers Submit instead of Next.
     var showsSubmit: Bool { isLastQuestion || isTimeUp || answersClosed }
 
-    func isSelected(_ optionID: Int) -> Bool {
-        guard let question = currentQuestion else { return false }
-        return sheet.selected(question.attemptQuestionId).contains(optionID)
+    /// The current question's options in the shape the shared Quiz option list draws.
+    var currentOptions: [SharedAssessmentOptionModel] {
+        guard let question = currentQuestion else { return [] }
+        let picked = sheet.selected(question.attemptQuestionId)
+        return question.options.map { option in
+            SharedAssessmentOptionModel(
+                id: option.stableID,
+                title: option.optionText,
+                isSelected: picked.contains(option.id),
+                questionID: question.attemptQuestionId,
+                optionText: option.optionText,
+                selectedOptionId: Int32(clamping: option.id)
+            )
+        }
+    }
+
+    var currentOptionType: AssessmentKit.OptionType {
+        currentQuestion?.isMultiple == true ? .multipleSelection : .singleSelection
     }
 
     func isAnswered(at index: Int) -> Bool {
@@ -123,9 +139,9 @@ extension QuizPlayerViewModel {
 // MARK: - Actions
 extension QuizPlayerViewModel {
 
-    func didSelectOption(_ option: DM.PlayerOption) {
-        guard acceptsAnswers, let question = currentQuestion else { return }
-        sheet.toggle(optionID: option.id, in: question)
+    func didSelectOption(_ option: SharedAssessmentOptionModel) {
+        guard acceptsAnswers, let question = currentQuestion, let optionID = option.selectedOptionId else { return }
+        sheet.toggle(optionID: Int(optionID), in: question)
     }
 
     func didTapNext() {
