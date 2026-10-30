@@ -2,8 +2,8 @@
 //  ScheduleListViewModel.swift
 //  Create_Schedule_Kit
 //
-//  Drives the Scheduler landing screen: a paginated schedule list with Upcoming/Ongoing/Completed
-//  tabs (filtered client-side by start/end date — the endpoint has no tab parameter), search, and a
+//  Drives the Scheduler landing screen: a paginated schedule list shown in the order the API
+//  returns it (no client-side filtering), search, and a
 //  "+ New" action that launches the create-schedule wizard. Total count and configurable settings
 //  are fetched in parallel with the first page. The rows are refetched when a schedule is created,
 //  updated or cancelled, and whenever the screen comes back on top.
@@ -15,7 +15,8 @@ import SwiftfulRouting
 import SwiftUIUtilities
 import NetworkService
 
-enum ScheduleTab: CaseIterable {
+/// Where a schedule is in time. Only the detail header pill reads this, the list doesnt filter on it.
+enum ScheduleStatus {
     case upcoming
     case ongoing
     case completed
@@ -42,7 +43,6 @@ final class ScheduleListViewModel: BaseViewModel, PaginatableViewModel {
     @Published var items: [Schedule] = []
 
     // MARK: - Screen state
-    @Published var selectedTab: ScheduleTab = .upcoming
     @Published var searchText: String = ""
     /// Column the search text is matched against. Defaults to Module Name, the web client's
     /// default — there is deliberately no "no column" option, which would leave the search box
@@ -75,17 +75,6 @@ final class ScheduleListViewModel: BaseViewModel, PaginatableViewModel {
 // MARK: - Derived UI state
 extension ScheduleListViewModel {
 
-    /// Items for the selected tab. The split itself lives on `Schedule.listTab` so the list
-    /// tabs and the detail header pill cannot drift apart.
-    var displayItems: [Schedule] {
-        let now = Date()
-        return items.filter { $0.listTab(now: now) == selectedTab }
-    }
-
-    /// True while `fillSelectedTab()` is still walking pages looking for rows for this tab — the
-    /// view shows a spinner rather than "no schedules" for that window.
-    var isFillingTab: Bool { displayItems.isEmpty && isLoadingMore }
-
     var searchPlaceholder: String { "Search by \(filterColumn.title)…" }
 
     /// An external trainer may view a schedule and mark its attendance, nothing more — so
@@ -117,33 +106,33 @@ extension ScheduleListViewModel {
     @MainActor
     private func loadEverything() async {
         // List, total count, and config settings are all independent → run in parallel.
-        async let list: Void = refreshAndFill()
+        async let list: Void = refresh()
         async let count: Void = fetchCount()
         async let configs: Void = fetchConfigs()
         _ = await (list, count, configs)
     }
 
-    /// Reloads page 1 and then keeps paging until the selected tab has rows to show.
+    /// `loadMore()` that drops rows already in the list. If the server ignores `page` and sends
+    /// the same rows back, `hasMore` would stay true forever (it only checks the page size) and
+    /// every scroll to the bottom would fire another call. A page of nothing but repeats ends
+    /// paging. Returns whether any new row came in.
     @MainActor
-    private func refreshAndFill() async {
-        await refresh()
-        await fillSelectedTab()
-    }
+    @discardableResult
+    private func loadNextPage() async -> Bool {
+        let idsBefore = items.map(\.id)
+        await loadMore()
+        // Empty page / failed request, or a refresh swapped the list out mid-flight. Either way
+        // there is no appended page here to check.
+        guard items.count > idsBefore.count,
+              items.prefix(idsBefore.count).map(\.id) == idsBefore else { return false }
 
-    /// `GetScheduleData` has no tab parameter, so both tabs are filtered client-side out of one
-    /// server-paginated array. A page can be entirely upcoming, which leaves the Completed tab with
-    /// no row to fire `loadMoreIfNeeded` — paging would stall and the tab would look permanently
-    /// empty. So after every load, keep pulling pages until this tab has something or the server
-    /// runs out.
-    @MainActor
-    private func fillSelectedTab() async {
-        while displayItems.isEmpty, hasMore, !isLoadingMore {
-            let countBefore = items.count
-            await loadMore()
-            // A page that added nothing — empty response or a failed request, which leaves
-            // `hasMore` untouched — means no progress. Stop rather than spin on it.
-            guard items.count > countBefore else { return }
+        var seen = Set(idsBefore)
+        let fresh = items[idsBefore.count...].filter { seen.insert($0.id).inserted }
+        if fresh.count < items.count - idsBefore.count {
+            items = Array(items.prefix(idsBefore.count)) + fresh
         }
+        if fresh.isEmpty { hasMore = false }
+        return !fresh.isEmpty
     }
 
     private func subscribeToEvents() {
@@ -153,12 +142,12 @@ extension ScheduleListViewModel {
                 guard let self else { return }
                 switch event {
                 case .scheduleCreated:
-                    Task { await self.refreshAndFill() }
+                    Task { await self.refresh() }
                 case .scheduleUpdated:
                     // The wizard is dismissed before this fires, so the list owns
                     // the success feedback.
                     self.toast = Toast(style: .success, message: "Schedule updated successfully.")
-                    Task { await self.refreshAndFill() }
+                    Task { await self.refresh() }
                 case .cancelled:
                     break
                 }
@@ -167,15 +156,8 @@ extension ScheduleListViewModel {
     }
 }
 
-// MARK: - Search & tabs
+// MARK: - Search
 extension ScheduleListViewModel {
-
-    func selectTab(_ tab: ScheduleTab) {
-        guard tab != selectedTab else { return }
-        selectedTab = tab
-        // The new tab may have no rows in what has been fetched so far.
-        Task { [weak self] in await self?.fillSelectedTab() }
-    }
 
     /// Typing only ever schedules work: the debouncer coalesces the keystrokes, and the
     /// reload is skipped outright unless what would be sent actually changed.
@@ -205,13 +187,13 @@ extension ScheduleListViewModel {
         searchGeneration += 1
         let generation = searchGeneration
         isSearching = true
-        await refreshAndFill()
+        await refresh()
         if generation == searchGeneration { isSearching = false }
     }
 
     func loadMoreIfNeeded(currentItem: Schedule) {
-        guard currentItem.id == displayItems.last?.id, hasMore, !isLoadingMore else { return }
-        Task { [weak self] in await self?.loadMore() }
+        guard currentItem.id == items.last?.id, hasMore, !isLoadingMore else { return }
+        Task { [weak self] in await self?.loadNextPage() }
     }
 }
 
@@ -311,8 +293,8 @@ extension ScheduleListViewModel {
             // neither does — a value with no column is dropped on the floor server-side.
             search: query.isEmpty ? nil : filterColumn.apiValue,
             searchText: query.isEmpty ? nil : query,
-            // `"false"` makes the server withhold past schedules, which left the Completed tab
-            // with nothing to show. The legacy ILT schedule screen sends `"true"` here too.
+            // `"false"` makes the server withhold past schedules, so finished ones never showed
+            // up. The legacy ILT schedule screen sends `"true"` here too.
             showAllData: "true"
         )
         let schedules = try await ApiService.shared.requestPostHeader(
@@ -420,7 +402,7 @@ extension ScheduleListViewModel {
     private func silentReload() async {
         // Nothing on screen to preserve — fall back to the regular first-load pipeline.
         guard !items.isEmpty else {
-            await refreshAndFill()
+            await refresh()
             return
         }
         do {
@@ -431,9 +413,6 @@ extension ScheduleListViewModel {
             items = fresh
             hasMore = fresh.count >= window
             emptyState = items.isEmpty ? .noData : .none
-            // The selected tab may have emptied (e.g. its last schedule was cancelled or moved
-            // buckets) — keep paging until it has rows again or the server runs out.
-            await fillSelectedTab()
         } catch {
             handleAPIError(error, resetLoadingState: false, showToast: false)
         }

@@ -134,7 +134,7 @@ import Testing
             endDaysFromToday: 1
         )
 
-        #expect(schedule.listTab == .ongoing)
+        #expect(schedule.status() == .ongoing)
         viewModel.didTapCancel(schedule)
 
         let toast = try #require(viewModel.toast)
@@ -171,7 +171,7 @@ import Testing
             endDaysFromToday: daysFromToday
         )
 
-        #expect(schedule.listTab == .upcoming)
+        #expect(schedule.status() == .upcoming)
         viewModel.didTapCancel(schedule)
 
         #expect(viewModel.toast == nil)

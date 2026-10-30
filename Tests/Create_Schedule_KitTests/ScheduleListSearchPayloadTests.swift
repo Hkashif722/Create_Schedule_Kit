@@ -7,7 +7,7 @@ import Foundation
 /// `{Page: 1, PageSize: 10, Search: "moduleName", searchText: "aa", showAllData: "false"}`.
 ///
 /// `showAllData` is the one deliberate difference: the package sends `"true"` so the server does
-/// not withhold past schedules, which the Completed tab needs.
+/// not withhold past schedules — the list shows finished ones too.
 @Suite struct ScheduleListSearchPayloadTests {
 
     private func encodeToObject(_ payload: ScheduleListDataModel.ListPayload) throws -> [String: Any] {

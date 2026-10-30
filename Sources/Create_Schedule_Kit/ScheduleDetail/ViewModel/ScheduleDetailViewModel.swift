@@ -235,6 +235,12 @@ extension ScheduleDetailViewModel {
         )
     }
 
+    /// The API wants the AES-encrypted user id, but the list returns only the numeric one
+    /// (`userId` there is a plain login name), so it is encrypted in-package.
+    private func encryptedUserId(for nominee: Nominee) -> String {
+        EncryptDecryptUtility.shared.newEncryptValueString(valueStr: "\(nominee.id)")
+    }
+
     /// Removes a nominee from the schedule. This endpoint answers with an empty body,
     /// so anything that decodes without throwing — including `noData` — counts as success.
     @MainActor
@@ -244,9 +250,7 @@ extension ScheduleDetailViewModel {
             scheduleID: schedule.id,
             courseId: schedule.courseID ?? 0,
             moduleId: schedule.moduleId ?? 0,
-            // The row's numeric id, unencrypted — see `DeleteNominationPayload`. The list's
-            // own `userId` is a login name ("anu"), which this endpoint does not accept.
-            userId: "\(nominee.id)"
+            userIdEncrypted: encryptedUserId(for: nominee)
         )
         do {
             _ = try await ApiService.shared.requestPostHeader(

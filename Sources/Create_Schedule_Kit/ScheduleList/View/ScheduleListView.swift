@@ -2,8 +2,8 @@
 //  ScheduleListView.swift
 //  Create_Schedule_Kit
 //
-//  Scheduler landing screen — the package's dashboard entry point. Lists schedules with
-//  Upcoming/Completed tabs and search; "+ New" launches the create-schedule wizard.
+//  Scheduler landing screen — the package's dashboard entry point. Lists schedules in API order
+//  with search; "+ New" launches the create-schedule wizard.
 //
 
 import SwiftUI
@@ -25,12 +25,6 @@ struct ScheduleListView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            ScheduleTabBarView(
-                selection: Binding(
-                    get: { viewModel.selectedTab },
-                    set: { viewModel.selectTab($0) }
-                )
-            )
             filterRow.zIndex(1)
             searchBar
             content
@@ -138,10 +132,9 @@ private extension ScheduleListView {
     var content: some View {
         if viewModel.loadingState.isLoading && viewModel.items.isEmpty {
             spinner
-        } else if viewModel.displayItems.isEmpty {
-            // The tab can still be filling itself from later pages, and a search reload empties
-            // the rows before the results land — don't claim it's empty yet in either case.
-            if viewModel.isFillingTab || viewModel.isSearching { spinner } else { emptyState }
+        } else if viewModel.items.isEmpty {
+            // A search reload empties the rows before the results land — don't claim it's empty yet.
+            if viewModel.isSearching { spinner } else { emptyState }
         } else {
             list
         }
@@ -159,7 +152,7 @@ private extension ScheduleListView {
     var list: some View {
         ScrollView {
             LazyVStack(spacing: 16) {
-                ForEach(viewModel.displayItems) { schedule in
+                ForEach(viewModel.items) { schedule in
                     ScheduleCardView(
                         schedule: schedule,
                         participants: viewModel.participantCount(for: schedule),
@@ -186,7 +179,7 @@ private extension ScheduleListView {
             Image(systemName: "calendar.badge.exclamationmark")
                 .font(.system(size: 30, weight: .semibold))
                 .foregroundColor(.secondary)
-            Text("No \(viewModel.selectedTab.title.lowercased()) schedules")
+            Text("No schedules")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(.secondary)
             Spacer()

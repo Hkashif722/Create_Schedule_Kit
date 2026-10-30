@@ -360,6 +360,8 @@ extension ScheduleLogisticsViewModel {
                 type: ScheduleLogisticsDataModel.TrainingPlace.self,
                 model: ScheduleLogisticsDataModel.TrainingPlaceDetailRequest(id: id)
             )
+            guard selectedTrainingPlace?.id == id else { return }
+            selectedTrainingPlace = detail
             coordinatorName = detail.contactPerson ?? ""
             contactNumber = detail.contactNumber ?? ""
         } catch {

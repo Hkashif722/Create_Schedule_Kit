@@ -118,9 +118,15 @@ extension CancelScheduleViewModel {
         )) ?? false
     }
 
+    /// The API wants the AES-encrypted schedule id, but the list carries only the numeric one,
+    /// so it is encrypted in-package — same contract as the nominee-delete call.
+    private var encryptedScheduleID: String {
+        EncryptDecryptUtility.shared.newEncryptValueString(valueStr: "\(navModel.scheduleID)")
+    }
+
     var cancelPayload: CancelScheduleDataModel.CancelPayload {
         CancelScheduleDataModel.CancelPayload(
-            scheduleID: "\(navModel.scheduleID)",
+            scheduleID: encryptedScheduleID,
             reason: trimmedReason
         )
     }

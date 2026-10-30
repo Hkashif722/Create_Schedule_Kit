@@ -80,7 +80,7 @@ import SwiftUIUtilities
         #expect(object["academyAgencyName"] as? String == "PUNER")
         #expect(object["city"] as? String == "pune")
         #expect(object["seatCapacity"] as? String == "100")
-        #expect(object["scheduleCapacity"] as? String == "100")
+        #expect(object["scheduleCapacity"] as? Int == 100)
         #expect(object["placeID"] as? Int == 5)
         #expect(object["placeType"] as? String == "Internal")
         #expect(object["purpose"] as? String == "Planned Training")
@@ -117,6 +117,19 @@ import SwiftUIUtilities
         #expect(holidays[0]["date"] as? String == "2026-06-24")
         #expect(holidays[0]["isHoliday"] as? Bool == false)
         #expect(holidays[0]["reason"] as? String == "Work Day")
+    }
+
+    /// The server's `scheduleCapacity` is an `Int32`: an empty string came back as a 400
+    /// ("Error converting value {null} to type 'System.Int32'").
+    @Test func aPlaceWithoutCapacitySendsZeroScheduleCapacity() throws {
+        for capacity in [nil, "", "  "] as [String?] {
+            let draft = offlineDraft()
+            draft.trainingPlace = .init(id: 11, placeCode: nil, cityname: "Compass India",
+                                        placeName: "Compass India", accommodationCapacity: capacity,
+                                        postalAddress: nil, contactNumber: nil, contactPerson: nil)
+            let object = try encodeToObject(.init(draft: draft))
+            #expect(object["scheduleCapacity"] as? Int == 0)
+        }
     }
 
     @Test func webinarPayloadEmitsConditionalKeysAndFeedback() throws {
