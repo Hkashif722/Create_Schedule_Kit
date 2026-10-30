@@ -16,8 +16,7 @@ import Testing
 @Suite struct CancelSchedulePayloadTests {
 
     init() {
-        // The encrypt helper the `scheduleIDIsSentUnencrypted` check compares against reads
-        // the shared utility environment.
+        // Encrypting the schedule id reads the shared utility environment.
         SwiftUtilityEnvironment.configure(
             SwiftUtilityConfig(
                 encryptionDecryptionKey: "preview-key",
@@ -69,20 +68,32 @@ import Testing
         #expect(object["reason"] as? String == "Venue unavailable")
     }
 
-    /// `CancellationSchedule` does not decrypt its input: it takes the plain numeric id, so an
-    /// AES value like `"e4+LnddqL9V7/pYjXs99Ew=="` names no schedule the endpoint can find.
+    /// `CancellationSchedule` wants the AES-encrypted id; the list only carries the number,
+    /// so the view model encrypts it on the way out.
     @MainActor
-    @Test func scheduleIDIsSentUnencrypted() throws {
+    @Test func scheduleIDIsSentEncrypted() throws {
         let viewModel = Self.cancelViewModel()
         viewModel.reason = "Venue unavailable"
 
         let object = try encodeToObject(viewModel.cancelPayload)
         let sent = try #require(object["scheduleID"] as? String)
 
-        #expect(sent == "4127")
-        // Nothing base64-shaped: an encrypted id is padded and carries non-numeric bytes.
-        #expect(Int(sent) == 4127)
-        #expect(EncryptDecryptUtility.shared.newEncryptValueString(valueStr: "4127") != sent)
+        #expect(sent != "4127")
+        #expect(sent == EncryptDecryptUtility.shared.newEncryptValueString(valueStr: "4127"))
+        #expect(EncryptDecryptUtility.shared.newDecryptString(responseStr: sent) == "4127")
+    }
+
+    /// The encrypted id is an opaque base64 string — it must survive encoding byte for byte,
+    /// including the `==` padding, and must not be re-encoded or escaped.
+    @Test func encryptedScheduleIDIsPassedThroughVerbatim() throws {
+        let encrypted = "anJbdxE14AVKZkxIZabyHQ=="
+        let payload = CancelScheduleDataModel.CancelPayload(scheduleID: encrypted, reason: "cancel")
+        let object = try encodeToObject(payload)
+
+        #expect(object["scheduleID"] as? String == encrypted)
+
+        let raw = try #require(String(data: try JSONEncoder().encode(payload), encoding: .utf8))
+        #expect(raw.contains("anJbdxE14AVKZkxIZabyHQ=="))
     }
 
     /// The reason is trimmed on the way into the body, matching the validation that gates submit.

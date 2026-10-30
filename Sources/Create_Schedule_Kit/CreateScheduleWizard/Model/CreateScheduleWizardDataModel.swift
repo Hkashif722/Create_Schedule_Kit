@@ -132,7 +132,7 @@ enum CreateScheduleWizardDataModel {
         let academyAgencyName: String?
         let city: String?
         let seatCapacity: String
-        let scheduleCapacity: String
+        let scheduleCapacity: Int
         let postalAddress: String?
         let placeID: Int?
         let placeName: String?
@@ -302,7 +302,9 @@ extension CreateScheduleWizardDataModel.Payload {
             academyAgencyName: draft.apiAcademyAgencyName,
             city: draft.trainingPlace?.cityname,
             seatCapacity: draft.trainingPlace?.accommodationCapacity ?? "",
-            scheduleCapacity: draft.trainingPlace?.accommodationCapacity ?? "",
+            // No capacity on the place → 0, same as the web.
+            scheduleCapacity: draft.trainingPlace?.accommodationCapacity
+                .flatMap { Int($0.trimmingCharacters(in: .whitespaces)) } ?? 0,
             postalAddress: draft.trainingPlace?.postalAddress,
             placeID: draft.trainingPlace?.id,
             placeName: draft.trainingPlace?.placeName,

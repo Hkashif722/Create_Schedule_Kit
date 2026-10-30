@@ -48,21 +48,17 @@ enum ScheduleDetailDataModel {
 
     // MARK: - Payload
 
-    /// Body for `DeleteUserNomination`.
-    ///
-    /// `UserIdEncrypted` is the server's name for the field, not a description of its
-    /// contents: it takes the nominee row's plain numeric id ("12306"). Sending an
-    /// AES-encrypted value there does not match any user and the delete is a no-op —
-    /// the endpoint answers with an empty body either way, so it fails silently.
+    /// Body for `DeleteUserNomination`. `UserIdEncrypted` is the nominee row's numeric id,
+    /// AES-encrypted by the view model — passed through untouched, never decoded.
     struct DeleteNominationPayload: Encodable {
         let scheduleID: Int
         let courseId: Int
         let moduleId: Int
-        let userId: String
+        let userIdEncrypted: String
 
         enum CodingKeys: String, CodingKey {
             case scheduleID, courseId, moduleId
-            case userId = "UserIdEncrypted"
+            case userIdEncrypted = "UserIdEncrypted"
         }
     }
 

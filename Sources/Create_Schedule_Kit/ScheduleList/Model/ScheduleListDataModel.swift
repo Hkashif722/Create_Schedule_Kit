@@ -82,7 +82,7 @@ enum ScheduleListDataModel {
     struct CountPayload: Encodable {
         var search: String?
         var searchText: String?
-        // must match ListPayload.showAllData or Completed tab count drifts from the list
+        // must match ListPayload.showAllData or the count drifts from the list
         var showAllData: String = "true"
         var fromDate: String?
         var toDate: String?
@@ -285,10 +285,10 @@ extension ScheduleListDataModel.Schedule {
             .joined(separator: " · ")
     }
 
-    /// Parsed end date for the Upcoming/Completed tab filter. Uses the tolerant parser for the
-    /// same reason `registrationEndDateValue` does — the API sometimes sends a date-only value
-    /// (`"2026-08-14"`), and an unparseable end date here forces the row into Upcoming, which is
-    /// what kept finished schedules out of the Completed tab.
+    /// Parsed end date for `status(now:)`. Uses the tolerant parser for the same reason
+    /// `registrationEndDateValue` does — the API sometimes sends a date-only value
+    /// (`"2026-08-14"`), and an unparseable end date here reads as not ended, so a finished
+    /// schedule would still say Upcoming.
     var endDateValue: Date? {
         ScheduleDraft.parseAPIDate(endDate)
     }
@@ -363,22 +363,19 @@ extension ScheduleListDataModel.Schedule {
         return now >= end
     }
 
-    /// The single source of truth for the Upcoming/Ongoing/Completed split — drives both the
-    /// list tabs (`ScheduleListViewModel.displayItems`) and the detail header pill, so the two
-    /// cannot drift apart. Completed once end date + 24-hour end time is reached, Ongoing
-    /// once start date + start time is reached, and Upcoming before that.
-    var listTab: ScheduleTab { listTab(now: Date()) }
-
-    func listTab(now: Date) -> ScheduleTab {
+    /// Upcoming/Ongoing/Completed for the detail header pill. Completed once end date + 24-hour
+    /// end time is reached, Ongoing once start date + start time is reached, and Upcoming before
+    /// that. The list itself is not split on this — rows show in API order.
+    func status(now: Date = Date()) -> ScheduleStatus {
         if hasEnded(now: now) { return .completed }
         return hasStarted(now: now) ? .ongoing : .upcoming
     }
 
-    /// Status pill on the detail header — the same label as the tab the schedule sits on.
+    /// Status pill on the detail header.
     var statusText: String { statusText(now: Date()) }
 
     func statusText(now: Date) -> String {
-        listTab(now: now).title
+        status(now: now).title
     }
 
     /// "Offline · Bangalore" / "Online · Bangalore"
