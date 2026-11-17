@@ -315,6 +315,88 @@ import Testing
         #expect(String(text.characters) == "Q3. Capital of France?")
     }
 
+    // MARK: - Question types (web's mediaKind + option pictures)
+
+    @Test func questionMediaFollowsTheWebBuckets() {
+        #expect(DM.QuestionMedia(contentType: "Image") == .image)
+        #expect(DM.QuestionMedia(contentType: "ImageText") == .image)
+        #expect(DM.QuestionMedia(contentType: "SubjectiveImage") == .image)
+        #expect(DM.QuestionMedia(contentType: "textaudio") == .audio)
+        #expect(DM.QuestionMedia(contentType: "TextVideo") == .video)
+        #expect(DM.QuestionMedia(contentType: "Objective") == nil)
+        #expect(DM.QuestionMedia(contentType: nil) == nil)
+        #expect(DM.QuestionMedia(contentType: "ObjectiveImageOption") == nil)
+        #expect(DM.QuestionMedia.image.assessmentContentType == .imageText)
+        #expect(DM.QuestionMedia.audio.assessmentContentType == .textAudio)
+        #expect(DM.QuestionMedia.video.assessmentContentType == .textVideo)
+    }
+
+    @Test func playerQuestionDecodesItsMediaAndOptionPictures() throws {
+        let q = try decode(DM.PlayerQuestion.self, """
+        {"attemptQuestionId": 5, "questionText": "Spot the logo", "optionType": "SingleSelection",
+         "contentType": "TextVideo", "contentPath": "/enth/question/clip.mp4",
+         "options": [{"id": 1, "optionText": "", "optionMediaFile": "/enth/opt/a.png"},
+                     {"id": 2, "optionText": "B", "optionMediaFile": "/enth/opt/b.png"}]}
+        """)
+        #expect(q.contentType == "TextVideo")
+        #expect(q.contentPath == "/enth/question/clip.mp4")
+        #expect(q.media == .video)
+        #expect(q.options[0].optionMediaFile == "/enth/opt/a.png")
+        #expect(q.hasImageOptions)
+        #expect(q.answerContentType == .image)
+    }
+
+    @Test func aMediaTypeWithoutAPathShowsNoBox() throws {
+        let q = try decode(DM.PlayerQuestion.self, """
+        {"attemptQuestionId": 5, "optionType": "SingleSelection", "contentType": "Image", "contentPath": "  ",
+         "options": [{"id": 1, "optionText": "A"}]}
+        """)
+        #expect(q.media == nil)
+        #expect(q.mediaURL == nil)
+    }
+
+    @Test func onlyAllPictureOptionsBecomeImageCards() {
+        func q(_ files: [String?]) -> DM.PlayerQuestion {
+            DM.PlayerQuestion(
+                attemptQuestionId: 1, sortOrder: 1, questionText: "Q", optionType: .single, marks: 1,
+                options: files.enumerated().map { .init(id: $0.offset, optionText: "o\($0.offset)", optionMediaFile: $0.element) }
+            )
+        }
+        #expect(q(["/a.png", "/b.png"]).answerContentType == .image)
+        // mixed stays a list, the image card has no text and draws a blank tile
+        #expect(q(["/a.png", nil]).answerContentType == .objective)
+        #expect(q(["/a.png", ""]).answerContentType == .objective)
+        #expect(q([nil, nil]).answerContentType == .objective)
+        #expect(q([]).answerContentType == .objective)
+    }
+
+    @Test func multiplePictureQuestionKeepsCheckboxSemantics() {
+        let q = DM.PlayerQuestion(
+            attemptQuestionId: 1, sortOrder: 1, questionText: "Q", optionType: .multiple, marks: 1,
+            options: [.init(id: 1, optionText: "", optionMediaFile: "/a.png"), .init(id: 2, optionText: "", optionMediaFile: "/b.png")]
+        )
+        var sheet = DM.AnswerSheet(questions: [q])
+        sheet.toggle(optionID: 1, in: q)
+        sheet.toggle(optionID: 2, in: q)
+        #expect(sheet.selected(1) == [1, 2])
+    }
+
+    @Test func resultDecodesMediaAndPicturesAndPictureAnswersStillCount() throws {
+        let q = try decode(DM.ResultQuestion.self, """
+        {"attemptQuestionId": 9, "questionText": "Which one?", "contentType": "Image", "contentPath": "/enth/q.png",
+         "isAnswered": true, "isCorrect": false,
+         "options": [{"id": 1, "optionText": "", "isCorrect": false, "isSelected": true, "optionMediaFile": "/enth/a.png"},
+                     {"id": 2, "optionText": " ", "isCorrect": true, "isSelected": false, "optionMediaFile": "/enth/b.png"},
+                     {"id": 3, "optionText": "Neither", "isCorrect": false, "isSelected": false}]}
+        """)
+        #expect(q.media == .image)
+        #expect(q.options[0].optionMediaFile == "/enth/a.png")
+        // ticked a picture with no text: answered, not "Not answered"
+        #expect(q.selectedText == "")
+        #expect(q.correctText == "")
+        #expect(q.options.filter(\.isSelected).count == 1)
+    }
+
     // MARK: - Countdown
 
     @Test func countdownRunsFromTheServerValue() {

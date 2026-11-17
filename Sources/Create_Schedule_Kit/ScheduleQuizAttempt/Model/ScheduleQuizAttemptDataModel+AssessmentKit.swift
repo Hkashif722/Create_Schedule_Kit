@@ -8,6 +8,7 @@
 
 import Foundation
 import AssessmentKit
+import SwiftUIUtilities
 
 extension ScheduleQuizAttemptDataModel {
 
@@ -32,6 +33,47 @@ extension ScheduleQuizAttemptDataModel {
         prefix.inlinePresentationIntent = .stronglyEmphasized
         return prefix + AttributedString(text)
     }
+
+    /// org-content path -> full url, same resolver the main app's assessment uses for contentPath
+    static func mediaURL(_ path: String?) -> URL? {
+        guard let path = trimmedPath(path) else { return nil }
+        return ResourceUtils.getParsedThumbnailPathURL(path)
+    }
+}
+
+extension ScheduleQuizAttemptDataModel.QuestionMedia {
+
+    /// the AssessmentKit type whose preview draws this media (image / audio / video player)
+    var assessmentContentType: AssessmentKit.ContentType {
+        switch self {
+        case .image: return .imageText
+        case .audio: return .textAudio
+        case .video: return .textVideo
+        }
+    }
+}
+
+extension ScheduleQuizAttemptDataModel.PlayerQuestion {
+
+    var mediaURL: URL? { media == nil ? nil : ScheduleQuizAttemptDataModel.mediaURL(contentPath) }
+
+    /// how AssessmentKit draws the answers. Only option-pick types exist here (Answer takes
+    /// option ids), so it's image cards or the radio / checkbox list, never a text box
+    var answerContentType: AssessmentKit.ContentType {
+        hasImageOptions ? .image : .objective
+    }
+}
+
+extension ScheduleQuizAttemptDataModel.ResultQuestion {
+
+    var mediaURL: URL? { media == nil ? nil : ScheduleQuizAttemptDataModel.mediaURL(contentPath) }
+
+    var selectedImageURLs: [URL] { options.filter(\.isSelected).compactMap(\.imageURL) }
+    var correctImageURLs: [URL] { options.filter(\.isCorrect).compactMap(\.imageURL) }
+}
+
+extension ScheduleQuizAttemptDataModel.ResultOption {
+    var imageURL: URL? { ScheduleQuizAttemptDataModel.mediaURL(optionMediaFile) }
 }
 
 extension SharedAssessmentOptionModel {
@@ -40,6 +82,7 @@ extension SharedAssessmentOptionModel {
         self.init(
             id: option.stableID,
             title: option.optionText,
+            imagePath: ScheduleQuizAttemptDataModel.mediaURL(option.optionMediaFile),
             isSelected: isSelected,
             questionID: questionID,
             optionText: option.optionText,

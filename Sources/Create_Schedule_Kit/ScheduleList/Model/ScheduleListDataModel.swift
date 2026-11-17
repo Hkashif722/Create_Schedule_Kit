@@ -263,6 +263,22 @@ extension ScheduleListDataModel.Schedule {
         return "\(start) – \(end)"
     }
 
+    /// List card line: "30 Oct 2026 - 30 Oct 2026, 8:00 pm – 9:30 pm". drops whatever half is missing
+    var cardDateTimeText: String {
+        let dates = [startDate, endDate]
+            .compactMap { ScheduleDraft.parseAPIDate($0)?.formatted(using: "dd MMM yyyy") }
+            .joined(separator: " - ")
+        let times = [startTime, endTime]
+            .compactMap { ScheduleDateRules.displayTime($0)?.lowercased() }
+            .joined(separator: " – ")
+        return [dates, times].filter { !$0.isEmpty }.joined(separator: ", ")
+    }
+
+    /// Status pill on the list card, "SCHEDULED" / "CANCELLED". empty when the api sends nothing
+    var statusBadgeText: String {
+        (scheduleType ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+    }
+
     /// "Jul 02, 2026 – Jul 02, 2026" (falls back to a single date, else empty).
     var dateRangeText: String {
         let start = Self.mediumDate(startDate)

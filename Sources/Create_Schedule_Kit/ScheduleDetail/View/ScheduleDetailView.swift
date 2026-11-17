@@ -116,7 +116,7 @@ private extension ScheduleDetailView {
     var quizSection: some View {
         if viewModel.canManageQuiz, let quizzes = viewModel.quizzes {
             section("PRE & POST QUIZ") {
-                ScheduleQuizSummaryCard(quizzes: quizzes, onManage: viewModel.didTapManageQuiz)
+                ScheduleQuizSummaryCard(quizzes: quizzes, onSelect: viewModel.didSelectQuiz)
             }
         }
     }

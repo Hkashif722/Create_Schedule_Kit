@@ -155,7 +155,6 @@ private extension ScheduleListView {
                 ForEach(viewModel.items) { schedule in
                     ScheduleCardView(
                         schedule: schedule,
-                        participants: viewModel.participantCount(for: schedule),
                         onViewDetails: { viewModel.didTapViewDetails(schedule) },
                         onAttendance: { viewModel.didTapAttendance(schedule) },
                         onEdit: { viewModel.didTapEdit(schedule) },

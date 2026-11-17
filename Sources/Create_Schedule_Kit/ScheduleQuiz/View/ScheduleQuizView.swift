@@ -112,12 +112,9 @@ private extension ScheduleQuizView {
                 QuizSlotCardView(
                     kind: kind,
                     quiz: viewModel.quiz(kind),
-                    isEnabled: Binding(
-                        get: { viewModel.isEnabled(kind) },
-                        set: { viewModel.setEnabled(kind, isOn: $0) }
-                    ),
-                    isToggleEnabled: viewModel.canToggle(kind),
+                    isActionEnabled: viewModel.isSlotActionEnabled,
                     emptyText: viewModel.emptySlotText(kind),
+                    onCreate: { viewModel.didTapCreate(kind) },
                     onEdit: { viewModel.didTapEdit(kind) },
                     onDelete: { viewModel.didTapDelete(kind) }
                 )

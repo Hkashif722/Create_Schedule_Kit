@@ -27,6 +27,10 @@ public struct CreateScheduleKitConfig: Sendable {
     let primaryColor: Color
     let secondaryColor: Color
     let tokenProvider: @Sendable () -> String?
+    let isUAT: Bool
+
+    // only drives the WireCrypto routes (cancel + nominee delete). uat plain, prod AES
+    var isEncryptionEnabled: Bool { !isUAT }
 
     public init(
         baseURL: String,
@@ -43,6 +47,7 @@ public struct CreateScheduleKitConfig: Sendable {
         userMobileNumber: String = "",
         primaryColor: Color = ColorUtility.primaryColor,
         secondaryColor: Color = ColorUtility.secondaryColor,
+        isUAT: Bool? = nil,
         tokenProvider: @escaping @Sendable () -> String?
     ) {
         APIConst.baseURL = baseURL
@@ -60,5 +65,7 @@ public struct CreateScheduleKitConfig: Sendable {
         self.primaryColor = primaryColor
         self.secondaryColor = secondaryColor
         self.tokenProvider = tokenProvider
+        // nil = sniff it off baseURL, host app doesn't have to pass anything
+        self.isUAT = isUAT ?? APIConst.isUATHost(baseURL)
     }
 }

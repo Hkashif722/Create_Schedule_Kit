@@ -2,7 +2,7 @@
 //  ScheduleQuizSummaryCard.swift
 //  Create_Schedule_Kit
 //
-//  Schedule Details' quiz section: one line per Pre/Post slot and a Manage button.
+//  Schedule Details' quiz section: one line per Pre/Post slot. An added quiz opens its preview.
 //
 
 import SwiftUI
@@ -12,31 +12,36 @@ struct ScheduleQuizSummaryCard: View {
     typealias DM = ScheduleQuizDataModel
 
     let quizzes: DM.ScheduleQuizzes
-    let onManage: () -> Void
+    let onSelect: (DM.QuizKind, DM.QuizSummary) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(DM.QuizKind.allCases) { kind in
-                row(kind: kind, quiz: quizzes.quiz(kind))
-                Divider()
-            }
-            Button(action: onManage) {
-                HStack(spacing: 6) {
-                    Image(systemName: "square.and.pencil")
-                    Text("Manage quizzes")
+                slot(kind: kind, quiz: quizzes.quiz(kind))
+                if kind != DM.QuizKind.allCases.last {
+                    Divider()
                 }
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(CSTheme.primaryColor)
-                .frame(maxWidth: .infinity)
-                .frame(height: 48)
             }
-            .buttonStyle(.plain)
         }
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(Color(.systemBackground))
                 .shadow(color: .black.opacity(0.06), radius: 8, y: 2)
         )
+    }
+
+    @ViewBuilder
+    private func slot(kind: DM.QuizKind, quiz: DM.QuizSummary?) -> some View {
+        if let quiz {
+            Button { onSelect(kind, quiz) } label: {
+                row(kind: kind, quiz: quiz)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Shows the questions and correct answers")
+        } else {
+            row(kind: kind, quiz: nil)
+        }
     }
 
     private func row(kind: DM.QuizKind, quiz: DM.QuizSummary?) -> some View {
@@ -58,6 +63,11 @@ struct ScheduleQuizSummaryCard: View {
                     title: quiz.isPublished ? "Published" : "Draft",
                     tint: quiz.isPublished ? .green : .orange
                 )
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(Color(.tertiaryLabel))
+                    .padding(.top, 5)
+                    .accessibilityHidden(true)
             }
         }
         .padding(14)
@@ -74,7 +84,7 @@ struct ScheduleQuizSummaryCard: View {
                            isPublished: true, publishedOn: nil, isLocked: false, attemptCount: 0),
             postQuiz: nil
         ),
-        onManage: {}
+        onSelect: { _, _ in }
     )
     .padding()
     .background(Color.scheduleBackground)

@@ -175,6 +175,14 @@ extension NavigationViewModel {
         let isOtherSlotEmpty: () -> Bool
         /// "Yes, Add …" on that prompt. The editor pops itself first.
         let onAddOtherQuiz: () -> Void
+        /// Wizard only: runs its Finish (nominate prompt) once the quiz step is done. The editor pops itself first.
+        var onFinish: (() -> Void)? = nil
+    }
+
+    // Read-only look at one quiz from Schedule Details: settings, questions, options, right answers.
+    struct QuizPreviewNavModel {
+        let quizID: Int
+        let kind: ScheduleQuizDataModel.QuizKind
     }
 
     struct QuizSettingsNavModel {

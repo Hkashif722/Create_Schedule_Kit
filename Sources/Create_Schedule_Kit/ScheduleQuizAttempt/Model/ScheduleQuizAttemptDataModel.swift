@@ -214,6 +214,29 @@ enum ScheduleQuizAttemptDataModel {
         case submitted(score: Score?)
     }
 
+    // MARK: - Question media
+
+    /// What plays above the options. Same buckets as web's `mediaKind(contentType)`:
+    /// Image / ImageText / SubjectiveImage = picture, TextAudio = audio, TextVideo = video.
+    /// Objective and anything unknown = text only.
+    enum QuestionMedia: Equatable {
+        case image, audio, video
+
+        init?(contentType: String?) {
+            switch contentType?.lowercased() {
+            case "image", "imagetext", "subjectiveimage": self = .image
+            case "textaudio":                             self = .audio
+            case "textvideo":                             self = .video
+            default:                                      return nil
+            }
+        }
+    }
+
+    static func trimmedPath(_ path: String?) -> String? {
+        guard let path = path?.trimmingCharacters(in: .whitespacesAndNewlines), !path.isEmpty else { return nil }
+        return path
+    }
+
     // MARK: - Player
 
     struct PlayerOption: Decodable, Identifiable, Equatable {
@@ -248,18 +271,34 @@ enum ScheduleQuizAttemptDataModel {
         let isAnswered: Bool
         let selectedOptionIds: [Int]
         let options: [PlayerOption]
+        /// Bank question type, "Objective" / "Image" / "TextVideo"... Drives `media`.
+        let contentType: String?
+        /// Relative org-content path of the question's picture / clip.
+        let contentPath: String?
 
         var id: Int { attemptQuestionId }
         var isMultiple: Bool { optionType == .multiple }
 
+        /// nil when the type has no media or the path is blank, so no empty box shows up
+        var media: QuestionMedia? {
+            ScheduleQuizAttemptDataModel.trimmedPath(contentPath) == nil ? nil : QuestionMedia(contentType: contentType)
+        }
+
+        /// every option has a picture = image-answer question (main app's Image type cards).
+        /// mixed sets stay a text list, the card has no text and would draw a blank tile
+        var hasImageOptions: Bool {
+            !options.isEmpty && options.allSatisfy { ScheduleQuizAttemptDataModel.trimmedPath($0.optionMediaFile) != nil }
+        }
+
         enum CodingKeys: String, CodingKey {
             case attemptQuestionId, sortOrder, questionText, learnerInstruction, optionType, marks
-            case isAnswered, selectedOptionIds, options
+            case isAnswered, selectedOptionIds, options, contentType, contentPath
         }
 
         init(attemptQuestionId: Int, sortOrder: Int, questionText: String, learnerInstruction: String? = nil,
              optionType: OptionType, marks: Double, isAnswered: Bool = false,
-             selectedOptionIds: [Int] = [], options: [PlayerOption]) {
+             selectedOptionIds: [Int] = [], options: [PlayerOption],
+             contentType: String? = nil, contentPath: String? = nil) {
             self.attemptQuestionId = attemptQuestionId
             self.sortOrder = sortOrder
             self.questionText = questionText
@@ -269,6 +308,8 @@ enum ScheduleQuizAttemptDataModel {
             self.isAnswered = isAnswered
             self.selectedOptionIds = selectedOptionIds
             self.options = options
+            self.contentType = contentType
+            self.contentPath = contentPath
         }
 
         init(from decoder: Decoder) throws {
@@ -282,6 +323,8 @@ enum ScheduleQuizAttemptDataModel {
             isAnswered = try c.decodeIfPresent(Bool.self, forKey: .isAnswered) ?? false
             selectedOptionIds = try c.decodeIfPresent([Int].self, forKey: .selectedOptionIds) ?? []
             options = try c.decodeIfPresent([PlayerOption].self, forKey: .options) ?? []
+            contentType = try c.decodeIfPresent(String.self, forKey: .contentType)
+            contentPath = try c.decodeIfPresent(String.self, forKey: .contentPath)
         }
     }
 
@@ -342,14 +385,16 @@ enum ScheduleQuizAttemptDataModel {
         let optionText: String
         let isCorrect: Bool
         let isSelected: Bool
+        let optionMediaFile: String?
 
-        enum CodingKeys: String, CodingKey { case id, optionText, isCorrect, isSelected }
+        enum CodingKeys: String, CodingKey { case id, optionText, isCorrect, isSelected, optionMediaFile }
 
-        init(id: Int, optionText: String, isCorrect: Bool, isSelected: Bool) {
+        init(id: Int, optionText: String, isCorrect: Bool, isSelected: Bool, optionMediaFile: String? = nil) {
             self.id = id
             self.optionText = optionText
             self.isCorrect = isCorrect
             self.isSelected = isSelected
+            self.optionMediaFile = optionMediaFile
         }
 
         init(from decoder: Decoder) throws {
@@ -358,6 +403,7 @@ enum ScheduleQuizAttemptDataModel {
             optionText = try c.decodeIfPresent(String.self, forKey: .optionText) ?? ""
             isCorrect = try c.decodeIfPresent(Bool.self, forKey: .isCorrect) ?? false
             isSelected = try c.decodeIfPresent(Bool.self, forKey: .isSelected) ?? false
+            optionMediaFile = try c.decodeIfPresent(String.self, forKey: .optionMediaFile)
         }
     }
 
@@ -370,16 +416,23 @@ enum ScheduleQuizAttemptDataModel {
         let isAnswered: Bool
         let isCorrect: Bool
         let options: [ResultOption]
+        let contentType: String?
+        let contentPath: String?
 
         var id: Int { attemptQuestionId }
 
+        var media: QuestionMedia? {
+            ScheduleQuizAttemptDataModel.trimmedPath(contentPath) == nil ? nil : QuestionMedia(contentType: contentType)
+        }
+
         enum CodingKeys: String, CodingKey {
             case attemptQuestionId, sortOrder, questionText, marksAllotted, marksObtained
-            case isAnswered, isCorrect, options
+            case isAnswered, isCorrect, options, contentType, contentPath
         }
 
         init(attemptQuestionId: Int, sortOrder: Int, questionText: String, marksAllotted: Double,
-             marksObtained: Double, isAnswered: Bool, isCorrect: Bool, options: [ResultOption]) {
+             marksObtained: Double, isAnswered: Bool, isCorrect: Bool, options: [ResultOption],
+             contentType: String? = nil, contentPath: String? = nil) {
             self.attemptQuestionId = attemptQuestionId
             self.sortOrder = sortOrder
             self.questionText = questionText
@@ -388,6 +441,8 @@ enum ScheduleQuizAttemptDataModel {
             self.isAnswered = isAnswered
             self.isCorrect = isCorrect
             self.options = options
+            self.contentType = contentType
+            self.contentPath = contentPath
         }
 
         init(from decoder: Decoder) throws {
@@ -400,15 +455,24 @@ enum ScheduleQuizAttemptDataModel {
             isAnswered = try c.decodeIfPresent(Bool.self, forKey: .isAnswered) ?? false
             isCorrect = try c.decodeIfPresent(Bool.self, forKey: .isCorrect) ?? false
             options = try c.decodeIfPresent([ResultOption].self, forKey: .options) ?? []
+            contentType = try c.decodeIfPresent(String.self, forKey: .contentType)
+            contentPath = try c.decodeIfPresent(String.self, forKey: .contentPath)
         }
 
+        /// nil = nothing ticked. picture-only options have no text, so "" can still mean answered
         var selectedText: String? {
-            let picked = options.filter(\.isSelected).map(\.optionText)
-            return picked.isEmpty ? nil : picked.joined(separator: ", ")
+            let picked = options.filter(\.isSelected)
+            return picked.isEmpty ? nil : Self.joinedText(picked)
         }
 
         var correctText: String {
-            options.filter(\.isCorrect).map(\.optionText).joined(separator: ", ")
+            Self.joinedText(options.filter(\.isCorrect))
+        }
+
+        private static func joinedText(_ options: [ResultOption]) -> String {
+            options.map { $0.optionText.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: ", ")
         }
     }
 

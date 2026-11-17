@@ -58,6 +58,15 @@ import Foundation
         #expect(form(title: String(repeating: "a", count: 250)).validationMessage == nil)
     }
 
+    @Test func instructionsCappedAt500LikeWeb() {
+        var ok = form()
+        ok.instructions = String(repeating: "a", count: 500)
+        #expect(ok.validationMessage == nil)
+        var tooLong = form()
+        tooLong.instructions = String(repeating: "a", count: 501)
+        #expect(tooLong.validationMessage == "Instructions can be at most 500 characters.")
+    }
+
     /// The server counts .NET string length (UTF-16 units), so an emoji counts as two.
     @Test func titleLimitCountsUTF16LikeTheServer() {
         #expect(form(title: String(repeating: "😀", count: 125)).validationMessage == nil)

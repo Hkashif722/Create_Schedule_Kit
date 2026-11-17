@@ -155,11 +155,16 @@ private extension QuizPlayerView {
                 CSInfoBanner(style: .danger, title: "Time's up", message: "Your answers are being submitted.",
                              systemImage: "clock.badge.exclamationmark")
             }
+            if let instructions = viewModel.quizInstructionsText {
+                CSInfoBanner(style: .info, title: "Instructions", message: instructions)
+            }
             if let question = viewModel.currentQuestion {
                 questionHeader
+                questionMedia(for: question)
                 // shared option list brings its own ScrollView. wrap it in another and scroll breaks
                 QuizSelectionView(
                     questionID: question.attemptQuestionId,
+                    contentType: question.answerContentType,
                     options: viewModel.currentOptions,
                     optionType: viewModel.currentOptionType,
                     onSelect: viewModel.didSelectOption
@@ -202,6 +207,16 @@ private extension QuizPlayerView {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// picture / audio / video above the options, same box as the main app's assessment.
+    /// id per question so a playing clip stops when the learner moves on
+    @ViewBuilder
+    func questionMedia(for question: ScheduleQuizAttemptDataModel.PlayerQuestion) -> some View {
+        if let media = question.media, let url = question.mediaURL {
+            SharedAssessmentPreviewType(contentType: media.assessmentContentType, resourceURL: url)
+                .id(question.attemptQuestionId)
+        }
     }
 
     var bottomControl: some View {

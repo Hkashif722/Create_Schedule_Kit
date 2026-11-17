@@ -33,6 +33,7 @@ enum AppNavigationDestination {
     // schedule quiz (manager)
     case scheduleQuiz(NavigationViewModel.ScheduleQuizNavModel)
     case quizEditor(NavigationViewModel.QuizEditorNavModel)
+    case quizPreview(NavigationViewModel.QuizPreviewNavModel)
     case quizSettings(NavigationViewModel.QuizSettingsNavModel)
     case quizPackagePicker(NavigationViewModel.QuizPackagePickerNavModel)
     case quizBankPicker(NavigationViewModel.QuizBankPickerNavModel)
@@ -139,6 +140,11 @@ extension AppNavigationDestination: NavigationProtocol {
         case .quizEditor(let navModel):
             pushScreen(router) { router in
                 QuizEditorView(router: router, navModel: navModel)
+            }
+
+        case .quizPreview(let navModel):
+            pushScreen(router) { router in
+                QuizPreviewView(router: router, navModel: navModel)
             }
 
         // The pickers and forms all host text input, so large detent for the same keyboard

@@ -2,8 +2,8 @@
 //  QuizSelectionView.swift
 //  Create_Schedule_Kit
 //
-//  Answer area of a quiz question: AssessmentKit's option list, same as the main app's
-//  assessment. Radio for single choice, checkbox for multiple.
+//  Answer area of a quiz question, routed through AssessmentKit like the main app's assessment:
+//  image cards when every option is a picture, else the radio (single) / checkbox (multiple) list.
 //
 
 import SwiftUI
@@ -12,6 +12,8 @@ import AssessmentKit
 struct QuizSelectionView: View {
 
     let questionID: Int
+    /// `.image` = picture cards, `.objective` = text list. See `PlayerQuestion.answerContentType`
+    var contentType: AssessmentKit.ContentType = .objective
     let options: [SharedAssessmentOptionModel]
     let optionType: AssessmentKit.OptionType
     let onSelect: (SharedAssessmentOptionModel) -> Void
@@ -19,12 +21,13 @@ struct QuizSelectionView: View {
     var body: some View {
         SharedAssessmentSelectionTypeView(
             questionID: questionID,
-            contentType: .objective,
+            contentType: contentType,
             options: options,
             optionType: optionType,
             isSelected: { $0.isSelected },
             handleSelection: onSelect,
-            getTitle: { $0.optionText ?? $0.title }
+            getTitle: { $0.optionText ?? $0.title },
+            handleImageSelection: onSelect
         )
     }
 }

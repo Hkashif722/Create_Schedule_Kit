@@ -6,8 +6,9 @@
 //  `ScheduleDraft` and drives step navigation. The Feedback step is org-configurable
 //  (`ConfigurableParameters/GetValue/Schfbk`) — when it is off Venue submits the schedule.
 //
-//  Quiz is always the last step and comes after the submit: the Pre/Post quiz API is keyed
-//  by schedule id, which only exists once the schedule is saved.
+//  Quiz is org-configurable too (`ConfigurableParameters/GetValue/SCHEDULE_QUIZ`). When on it
+//  is the last step and comes after the submit: the Pre/Post quiz API is keyed by schedule id,
+//  which only exists once the schedule is saved. When off the submit step just finishes.
 //
 
 import SwiftUI
@@ -33,7 +34,12 @@ final class CreateScheduleWizardViewModel: BaseViewModel {
     // MARK: - State
     let draft = ScheduleDraft()
     let mode: WizardMode
-    var steps: [Step] { isFeedbackEnabled ? [.basics, .venue, .feedback, .quiz] : [.basics, .venue, .quiz] }
+    var steps: [Step] {
+        var steps: [Step] = [.basics, .venue]
+        if isFeedbackEnabled { steps.append(.feedback) }
+        if isQuizEnabled { steps.append(.quiz) }
+        return steps
+    }
     var stepLabels: [String] { steps.map(\.label) }
     var totalSteps: Int { steps.count }
     @Published var currentStep: Int = 1
@@ -42,8 +48,9 @@ final class CreateScheduleWizardViewModel: BaseViewModel {
         steps.indices.contains(currentStep - 1) ? steps[currentStep - 1] : nil
     }
 
-    /// The step whose primary action saves the schedule — the one right before Quiz.
-    private var submitStep: Int { totalSteps - 1 }
+    /// The step whose primary action saves the schedule — the one right before Quiz, or the
+    /// last one when Quiz is off.
+    private var submitStep: Int { isQuizEnabled ? totalSteps - 1 : totalSteps }
 
     var isOnQuizStep: Bool { currentStepKind == .quiz }
 
@@ -54,6 +61,9 @@ final class CreateScheduleWizardViewModel: BaseViewModel {
     /// explicit "Yes" from the config API — a failed lookup leaves the step hidden rather
     /// than offering a module the organization does not collect.
     @Published private(set) var isFeedbackEnabled: Bool = false
+
+    /// Pre/Post quiz is an org setting as well, same fail-closed rule as feedback.
+    @Published private(set) var isQuizEnabled: Bool = false
 
     /// The config lookup has settled (either way). Steps stay unrendered until then so the
     /// step tracker never flickers from three labels down to two.
@@ -79,10 +89,18 @@ final class CreateScheduleWizardViewModel: BaseViewModel {
         self.isHydrated = !mode.isEdit
         self.onFinish = onFinish
         super.init(router: router)
-        Task { [weak self] in await self?.loadFeedbackConfig() }
+        Task { [weak self] in await self?.loadConfigs() }
         if case .edit(let scheduleID) = mode {
             Task { [weak self] in await self?.loadEditData(scheduleID: scheduleID) }
         }
+    }
+
+    @MainActor
+    private func loadConfigs() async {
+        async let feedback: Void = loadFeedbackConfig()
+        async let quiz: Void = loadQuizConfig()
+        _ = await (feedback, quiz)
+        isConfigLoaded = true
     }
 
     /// `ConfigurableParameters/GetValue/Schfbk` → `{"value":"Yes"}` / `{"value":"No"}`.
@@ -97,7 +115,15 @@ final class CreateScheduleWizardViewModel: BaseViewModel {
         } catch {
             handleAPIError(error, resetLoadingState: false, showToast: false)
         }
-        isConfigLoaded = true
+    }
+
+    @MainActor
+    private func loadQuizConfig() async {
+        let response = try? await ApiService.shared.requestGetHeader(
+            type: ScheduleListDataModel.ConfigValueResponse.self,
+            model: ScheduleListDataModel.GetConfigValueRequest(key: ScheduleQuizDataModel.featureConfigKey)
+        )
+        isQuizEnabled = response?.isYes ?? false
     }
 
 }
@@ -173,6 +199,11 @@ extension CreateScheduleWizardViewModel {
             guard (response.statusCode ?? 0) == 200 else {
                 loadingState = .none
                 toast = Toast(style: .error, message: response.serverMessage ?? "Could not create schedule.")
+                return
+            }
+            guard isQuizEnabled else {
+                loadingState = .none
+                finishCreate()
                 return
             }
             // The create body answers no id, so the quiz step looks the new schedule up by its code.
@@ -296,7 +327,7 @@ extension CreateScheduleWizardViewModel {
                 return
             }
             loadingState = .none
-            if case .edit(let scheduleID) = mode {
+            if isQuizEnabled, case .edit(let scheduleID) = mode {
                 savedScheduleID = scheduleID
                 currentStep = totalSteps
             } else {

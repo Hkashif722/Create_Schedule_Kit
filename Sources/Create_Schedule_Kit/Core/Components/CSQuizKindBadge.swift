@@ -46,8 +46,24 @@ struct CSStatusChip: View {
     }
 }
 
+/// Yellow numbered circle in front of a quiz question.
+struct CSQuestionNumberBadge: View {
+    let number: Int
+    var size: CGFloat = 28
+
+    var body: some View {
+        Text("\(number)")
+            .font(.system(size: 13, weight: .bold))
+            .foregroundColor(Color(red: 0.55, green: 0.36, blue: 0.0))
+            .frame(width: size, height: size)
+            .background(Circle().fill(Color(red: 1.0, green: 0.85, blue: 0.40).opacity(0.7)))
+            .accessibilityLabel("Question \(number)")
+    }
+}
+
 #Preview {
     HStack {
+        CSQuestionNumberBadge(number: 3)
         CSQuizKindBadge(kind: .pre)
         CSQuizKindBadge(kind: .post)
         CSStatusChip(title: "Draft", tint: .orange)

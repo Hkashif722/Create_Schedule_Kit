@@ -3,8 +3,8 @@
 //  Create_Schedule_Kit
 //
 //  Form state + validation for the quiz settings sheet ("Create pre quiz" and the editor's
-//  Edit). Limits mirror the API: title ≤ 250, pass 0–100 or blank (no pass/fail), duration
-//  1–1440 whole minutes or blank (untimed).
+//  Edit). Limits mirror the API: title ≤ 250, instructions ≤ 500, pass 0–100 or blank (no
+//  pass/fail), duration 1–1440 whole minutes or blank (untimed).
 //
 
 import Foundation
@@ -12,6 +12,7 @@ import Foundation
 enum QuizSettingsDataModel {
 
     static let titleLimit = 250
+    static let instructionsLimit = 500
     static let passRange: ClosedRange<Double> = 0...100
     static let durationRange: ClosedRange<Int> = 1...1440
 
@@ -87,6 +88,9 @@ extension QuizSettingsDataModel.Form {
         typealias DM = QuizSettingsDataModel
         if trimmedTitle.isEmpty { return "Enter a quiz title." }
         if trimmedTitle.utf16.count > DM.titleLimit { return "Title can be at most \(DM.titleLimit) characters." }
+        if instructions.trimmingCharacters(in: .whitespacesAndNewlines).utf16.count > DM.instructionsLimit {
+            return "Instructions can be at most \(DM.instructionsLimit) characters."
+        }
         if !trimmedPass.isEmpty {
             guard let pass = passPercentage, DM.passRange.contains(pass) else {
                 return "Pass percentage must be 0–100, or blank for no pass/fail."

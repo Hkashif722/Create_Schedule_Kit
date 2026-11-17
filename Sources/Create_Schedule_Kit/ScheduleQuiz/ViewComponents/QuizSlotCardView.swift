@@ -2,8 +2,8 @@
 //  QuizSlotCardView.swift
 //  Create_Schedule_Kit
 //
-//  One Pre/Post slot: badge + name + Enabled switch, then either the quiz summary with
-//  Edit / Delete, or a one-line explainer while the slot is empty.
+//  One Pre/Post slot: badge + name, then either the quiz summary with Edit / Delete, or a
+//  one-line explainer + Create while the slot is empty.
 //
 
 import SwiftUI
@@ -12,9 +12,9 @@ struct QuizSlotCardView: View {
 
     let kind: ScheduleQuizDataModel.QuizKind
     let quiz: ScheduleQuizDataModel.QuizSummary?
-    @Binding var isEnabled: Bool
-    let isToggleEnabled: Bool
+    let isActionEnabled: Bool
     let emptyText: String
+    let onCreate: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
 
@@ -25,20 +25,17 @@ struct QuizSlotCardView: View {
                 Divider()
                 summary(quiz)
             } else {
-                Text(emptyText)
-                    .font(.system(size: 13.5))
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                emptyState
             }
         }
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(isEnabled ? CSTheme.primaryColor.opacity(0.04) : Color(.systemBackground))
+                .fill(quiz != nil ? CSTheme.primaryColor.opacity(0.04) : Color(.systemBackground))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(isEnabled ? CSTheme.primaryColor.opacity(0.35) : Color(.systemGray5), lineWidth: 1)
+                .stroke(quiz != nil ? CSTheme.primaryColor.opacity(0.35) : Color(.systemGray5), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.05), radius: 6, y: 2)
     }
@@ -53,16 +50,18 @@ struct QuizSlotCardView: View {
                 .minimumScaleFactor(0.8)
                 .layoutPriority(1)
             Spacer(minLength: 4)
-            Toggle(isOn: $isEnabled) {
-                Text(isEnabled ? "Enabled" : "Disabled")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-            }
-            .toggleStyle(SwitchToggleStyle(tint: .green))
-            .fixedSize()
-            .disabled(!isToggleEnabled)
-            .accessibilityLabel(kind.slotTitle)
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(emptyText)
+                .font(.system(size: 13.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            capsuleButton(title: "Create \(kind.lowercasedTitle)", systemImage: "plus", action: onCreate)
+                .disabled(!isActionEnabled)
+                .opacity(isActionEnabled ? 1 : 0.5)
         }
     }
 
@@ -104,15 +103,8 @@ struct QuizSlotCardView: View {
             }
 
             HStack(spacing: 12) {
-                Button(action: onEdit) {
-                    Label(quiz.isLocked ? "View questions" : "Edit questions", systemImage: "square.and.pencil")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(CSTheme.primaryColor.getDynamicTextColor)
-                        .padding(.horizontal, 16)
-                        .frame(height: 40)
-                        .background(Capsule().fill(CSTheme.primaryColor))
-                }
-                .buttonStyle(.plain)
+                capsuleButton(title: quiz.isLocked ? "View questions" : "Edit questions",
+                              systemImage: "square.and.pencil", action: onEdit)
 
                 Button(action: onDelete) {
                     Label("Delete", systemImage: "trash")
@@ -121,10 +113,22 @@ struct QuizSlotCardView: View {
                         .frame(height: 40)
                 }
                 .buttonStyle(.plain)
-                .disabled(!isToggleEnabled)
+                .disabled(!isActionEnabled)
                 Spacer(minLength: 0)
             }
         }
+    }
+
+    private func capsuleButton(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(CSTheme.primaryColor.getDynamicTextColor)
+                .padding(.horizontal, 16)
+                .frame(height: 40)
+                .background(Capsule().fill(CSTheme.primaryColor))
+        }
+        .buttonStyle(.plain)
     }
 
     private func stat(_ title: String, _ value: String) -> some View {
@@ -152,13 +156,13 @@ struct QuizSlotCardView: View {
             quiz: .init(id: 97, quizTypeId: 1, title: "class56 — pre check", totalQuestions: 2, totalMarks: 2,
                         passPercentage: nil, durationMinutes: nil, showResultToLearner: true,
                         isPublished: true, publishedOn: "29-10-2026", isLocked: true, attemptCount: 1),
-            isEnabled: .constant(true), isToggleEnabled: true,
-            emptyText: "", onEdit: {}, onDelete: {}
+            isActionEnabled: true,
+            emptyText: "", onCreate: {}, onEdit: {}, onDelete: {}
         )
         QuizSlotCardView(
-            kind: .post, quiz: nil, isEnabled: .constant(false), isToggleEnabled: true,
-            emptyText: "Learners take it after the session. Turn it on to create it and add questions.",
-            onEdit: {}, onDelete: {}
+            kind: .post, quiz: nil, isActionEnabled: true,
+            emptyText: "Learners take it after the session. Create it now and add questions in the editor.",
+            onCreate: {}, onEdit: {}, onDelete: {}
         )
     }
     .padding()

@@ -2,11 +2,13 @@
 //  QuizReviewRowView.swift
 //  Create_Schedule_Kit
 //
-//  One row of ANSWER REVIEW: right/wrong, the question, marks earned, the learner's answer and
-//  (when wrong) the correct one.
+//  One row of ANSWER REVIEW: right/wrong, the question, marks earned, the question's media, the
+//  learner's answer and (when wrong) the correct one. Option pictures show next to the text, as on web.
 //
 
 import SwiftUI
+import SwiftUIUtilities
+import AssessmentKit
 
 struct QuizReviewRowView: View {
     let number: Int
@@ -51,18 +53,28 @@ struct QuizReviewRowView: View {
             }
             .padding(12)
             .background(tint.opacity(0.07))
+            .accessibilityElement(children: .combine)
+
+            // own element so VoiceOver can still reach play / zoom
+            if let media = question.media, let url = question.mediaURL {
+                SharedAssessmentPreviewType(contentType: media.assessmentContentType, resourceURL: url)
+                    .padding([.horizontal, .top], 12)
+            }
 
             VStack(alignment: .leading, spacing: 6) {
                 answerLine(
                     label: "Your answer",
                     value: question.selectedText ?? "Not answered",
+                    images: question.selectedImageURLs,
                     color: question.selectedText == nil ? .secondary : (question.isCorrect ? .green : .red)
                 )
-                if !question.isCorrect, !question.correctText.isEmpty {
-                    answerLine(label: "Correct", value: question.correctText, color: .green)
+                if !question.isCorrect, !question.correctText.isEmpty || !question.correctImageURLs.isEmpty {
+                    answerLine(label: "Correct", value: question.correctText, images: question.correctImageURLs,
+                               color: .green)
                 }
             }
             .padding(12)
+            .accessibilityElement(children: .combine)
         }
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -70,20 +82,45 @@ struct QuizReviewRowView: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(tint.opacity(0.45), lineWidth: 1)
         )
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 
-    private func answerLine(label: String, value: String, color: Color) -> some View {
+    private func answerLine(label: String, value: String, images: [URL] = [], color: Color) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(label)
                 .font(.system(size: 12.5))
                 .foregroundColor(.secondary)
                 .frame(width: 90, alignment: .leading)
-            Text(value)
-                .font(.system(size: 13.5, weight: .semibold))
-                .foregroundColor(color)
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 6) {
+                if !value.isEmpty {
+                    Text(value)
+                        .font(.system(size: 13.5, weight: .semibold))
+                        .foregroundColor(color)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if !images.isEmpty {
+                    optionThumbnails(images, tint: color)
+                }
+            }
         }
+    }
+
+    /// picture options, tiny. VoiceOver gets a count, the pictures carry no alt text
+    private func optionThumbnails(_ urls: [URL], tint: Color) -> some View {
+        HStack(spacing: 6) {
+            ForEach(urls, id: \.self) { url in
+                CachedAsyncImage(url: url)
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 56, height: 42)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .strokeBorder(tint.opacity(0.5), lineWidth: 1)
+                    )
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(urls.count == 1 ? "1 picture option" : "\(urls.count) picture options")
     }
 }
 

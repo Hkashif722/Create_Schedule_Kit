@@ -45,8 +45,8 @@ struct CreateScheduleWizardView: View {
     @ViewBuilder
     private var stepContent: some View {
         // Steps copy the draft in their view-model inits, so in edit mode nothing
-        // renders until the fetched schedule has hydrated the draft. The Feedback
-        // config decides how many steps there are, so it gates rendering too.
+        // renders until the fetched schedule has hydrated the draft. The Feedback and
+        // Quiz configs decide how many steps there are, so they gate rendering too.
         if !viewModel.isReady {
             Color.clear
         } else {

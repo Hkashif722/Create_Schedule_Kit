@@ -240,12 +240,7 @@ struct QuizQuestionRowView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Text("\(index)")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(Color(red: 0.55, green: 0.36, blue: 0.0))
-                .frame(width: 28, height: 28)
-                .background(Circle().fill(Color(red: 1.0, green: 0.85, blue: 0.40).opacity(0.7)))
-                .accessibilityLabel("Question \(index)")
+            CSQuestionNumberBadge(number: index)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(question.text.isEmpty ? "Untitled question" : question.text)

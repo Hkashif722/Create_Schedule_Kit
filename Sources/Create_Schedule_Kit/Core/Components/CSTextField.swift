@@ -2,7 +2,8 @@
 //  CSTextField.swift
 //  Create_Schedule_Kit
 //
-//  Labelled single-line text field. Supports read-only (auto-populated / disabled) mode.
+//  Labelled single-line text field. Supports read-only (auto-populated / disabled) mode and an
+//  optional character cap with an "Up to N characters" counter.
 //
 
 import SwiftUI
@@ -17,6 +18,7 @@ struct CSTextField: View {
     var keyboardType: UIKeyboardType = .default
     /// Optional leading SF Symbol (e.g. "phone" for a contact number).
     var leadingSystemImage: String? = nil
+    var characterLimit: Int? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -33,6 +35,10 @@ struct CSTextField: View {
                     .keyboardType(keyboardType)
                     .disabled(isReadOnly)
                     .foregroundColor(isReadOnly ? .secondary : .primary)
+                    .onChange(of: text) { newValue in
+                        guard let characterLimit, newValue.count > characterLimit else { return }
+                        text = String(newValue.prefix(characterLimit))
+                    }
             }
             .padding(14)
             .background(isReadOnly ? Color(.systemGray6) : Color(.systemBackground))
@@ -41,6 +47,10 @@ struct CSTextField: View {
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(borderColor, lineWidth: 1)
             )
+
+            if let characterLimit {
+                CSCharacterLimitHint(count: text.count, limit: characterLimit)
+            }
         }
     }
 

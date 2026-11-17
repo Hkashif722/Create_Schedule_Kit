@@ -52,6 +52,7 @@ final class ScheduleListViewModel: BaseViewModel, PaginatableViewModel {
     @Published private(set) var participantCounts: [Int: Int] = [:]
     @Published private(set) var isBatchwiseEnabled: Bool = false
     @Published private(set) var canCancelPastSchedule: Bool = false
+    @Published private(set) var isQuizEnabled: Bool = false
 
     /// A search-driven reload is in flight. Drives a small spinner in the search field and
     /// suppresses the blocking "Fetching records..." overlay — see `setLoadingState`.
@@ -83,7 +84,7 @@ extension ScheduleListViewModel {
     var canCreateSchedule: Bool { permissions.canCreateSchedule }
     var canEditSchedule: Bool { permissions.canEditSchedule }
     var canCancelSchedule: Bool { permissions.canCancelSchedule }
-    var canManageQuiz: Bool { permissions.canManageQuiz }
+    var canManageQuiz: Bool { permissions.canManageQuiz && isQuizEnabled }
 
     func participantCount(for schedule: Schedule) -> Int {
         participantCounts[schedule.id] ?? schedule.participants
@@ -243,7 +244,7 @@ extension ScheduleListViewModel {
     }
 
     func didTapQuiz(_ schedule: Schedule) {
-        guard permissions.canManageQuiz else { return }
+        guard canManageQuiz else { return }
         NavigationService.shared.navigate(
             using: router,
             to: AppNavigationDestination.scheduleQuiz(.init(
@@ -449,7 +450,8 @@ extension ScheduleListViewModel {
     private func fetchConfigs() async {
         async let batch: Void = fetchBatchwiseFlag()
         async let cancel: Void = fetchPastCancelFlag()
-        _ = await (batch, cancel)
+        async let quiz: Void = fetchQuizFlag()
+        _ = await (batch, cancel, quiz)
     }
 
     @MainActor
@@ -476,5 +478,14 @@ extension ScheduleListViewModel {
             model: ScheduleListDataModel.GetConfigValueRequest(key: "Enable_PastScheduleCancel")
         )
         canCancelPastSchedule = response?.isYes ?? false
+    }
+
+    @MainActor
+    private func fetchQuizFlag() async {
+        let response = try? await ApiService.shared.requestGetHeader(
+            type: ScheduleListDataModel.ConfigValueResponse.self,
+            model: ScheduleListDataModel.GetConfigValueRequest(key: ScheduleQuizDataModel.featureConfigKey)
+        )
+        isQuizEnabled = response?.isYes ?? false
     }
 }

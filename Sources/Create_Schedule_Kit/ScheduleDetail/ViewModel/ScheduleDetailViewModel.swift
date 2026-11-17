@@ -30,6 +30,7 @@ final class ScheduleDetailViewModel: BaseViewModel, PaginatableViewModel {
 
     /// Pre/Post quiz slots. Nil until loaded, or when the role can't manage quizzes.
     @Published private(set) var quizzes: ScheduleQuizDataModel.ScheduleQuizzes?
+    @Published private(set) var isQuizEnabled = false
 
     private var hasLoaded = false
 
@@ -51,7 +52,7 @@ extension ScheduleDetailViewModel {
     /// Nominee deletion requires both the role permission and the `ATTNOM_DEL` config flag.
     var canDeleteNominees: Bool { canNominate && isDeleteEnabled }
 
-    var canManageQuiz: Bool { permissions.canManageQuiz && !schedule.isCancelled }
+    var canManageQuiz: Bool { permissions.canManageQuiz && isQuizEnabled && !schedule.isCancelled }
 
     var deliveryText: String {
         ScheduleListDataModel.Schedule.deliveryText(
@@ -99,8 +100,18 @@ extension ScheduleDetailViewModel {
         async let count: Void = fetchNomineesCount()
         async let detail: Void = fetchDetails()
         async let deleteFlag: Void = fetchDeleteFlag()
-        async let quiz: Void = fetchQuizzes()
+        async let quiz: Void = loadQuizSection()
         _ = await (list, count, detail, deleteFlag, quiz)
+    }
+
+    @MainActor
+    private func loadQuizSection() async {
+        let flag = try? await ApiService.shared.requestGetHeader(
+            type: ScheduleListDataModel.ConfigValueResponse.self,
+            model: ScheduleListDataModel.GetConfigValueRequest(key: ScheduleQuizDataModel.featureConfigKey)
+        )
+        isQuizEnabled = flag?.isYes ?? false
+        await fetchQuizzes()
     }
 
     /// Silent: the section just stays hidden when the quiz API isn't reachable for this role.
@@ -143,15 +154,11 @@ extension ScheduleDetailViewModel {
         NavigationService.shared.navigate(using: router, to: AppNavigationDestination.scheduleUsers(navModel))
     }
 
-    func didTapManageQuiz() {
+    func didSelectQuiz(_ kind: ScheduleQuizDataModel.QuizKind, _ quiz: ScheduleQuizDataModel.QuizSummary) {
         guard canManageQuiz else { return }
         NavigationService.shared.navigate(
             using: router,
-            to: AppNavigationDestination.scheduleQuiz(.init(
-                scheduleID: schedule.id,
-                scheduleCode: schedule.scheduleCode ?? "",
-                displayName: schedule.moduleName ?? schedule.courseName ?? ""
-            ))
+            to: AppNavigationDestination.quizPreview(.init(quizID: quiz.id, kind: kind))
         )
     }
 
@@ -268,10 +275,9 @@ extension ScheduleDetailViewModel {
         )
     }
 
-    /// The API wants the AES-encrypted user id, but the list returns only the numeric one
-    /// (`userId` there is a plain login name), so it is encrypted in-package.
+    // prod wants the row's numeric id AES'd, uat takes it plain. list userId is a login name, useless here
     private func encryptedUserId(for nominee: Nominee) -> String {
-        EncryptDecryptUtility.shared.newEncryptValueString(valueStr: "\(nominee.id)")
+        WireCrypto.encrypt("\(nominee.id)")
     }
 
     /// Removes a nominee from the schedule. This endpoint answers with an empty body,

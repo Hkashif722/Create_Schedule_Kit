@@ -43,6 +43,11 @@ public actor CreateScheduleKitAPIManager {
         config?.userMobileNumber ?? ""
     }
 
+    // no cfg yet = prod behaviour, tests lean on that
+    nonisolated internal var isEncryptionEnabled: Bool {
+        config?.isEncryptionEnabled ?? true
+    }
+
     private init() {}
 
     // Call this once from the host app

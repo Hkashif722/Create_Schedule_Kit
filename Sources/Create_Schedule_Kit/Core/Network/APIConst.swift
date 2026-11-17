@@ -17,6 +17,13 @@ internal struct APIConst {
     static nonisolated(unsafe) var lxpBlobPath = ""
     static nonisolated(unsafe) var lxpBlobPath1 = ""
 
+    // MARK: - Env
+    static let uatHost = "uat.gogetempowered.com"
+
+    static func isUATHost(_ baseURL: String) -> Bool {
+        URL(string: baseURL)?.host?.lowercased() == uatHost
+    }
+
     // MARK: - ILTSchedule
     /// POST create-schedule (with webinar/meeting). `ILTSchedule/PostWithMeeting`.
     static let iltSchedule = "ILTSchedule"

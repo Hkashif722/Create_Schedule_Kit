@@ -34,7 +34,8 @@ struct QuizInlineQuestionSheet: View {
                     answerTypePicker
                     marksAndDifficulty
                     CSTextField(title: "Learner instruction", placeholder: "e.g. Pick one",
-                                text: $viewModel.form.learnerInstruction)
+                                text: $viewModel.form.learnerInstruction,
+                                characterLimit: DM.instructionLimit)
                     optionsSection
                     rulesBox
                 }
@@ -63,13 +64,7 @@ private extension QuizInlineQuestionSheet {
                 maxCharacters: DM.textLimit,
                 onTextChanged: { text, _ in viewModel.form.questionText = text }
             )
-            HStack {
-                Text("Up to \(DM.textLimit) characters")
-                Spacer()
-                Text(viewModel.characterCountText)
-            }
-            .font(.system(size: 12))
-            .foregroundColor(.secondary)
+            CSCharacterLimitHint(count: viewModel.form.questionText.utf16.count, limit: DM.textLimit)
         }
     }
 

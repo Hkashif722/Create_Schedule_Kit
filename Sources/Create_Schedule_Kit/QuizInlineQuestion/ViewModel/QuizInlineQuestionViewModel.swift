@@ -24,8 +24,6 @@ final class QuizInlineQuestionViewModel: BaseViewModel {
         self.navModel = navModel
         super.init(router: router)
     }
-
-    var characterCountText: String { "\(form.questionText.utf16.count)/\(DM.textLimit)" }
 }
 
 // MARK: - Actions

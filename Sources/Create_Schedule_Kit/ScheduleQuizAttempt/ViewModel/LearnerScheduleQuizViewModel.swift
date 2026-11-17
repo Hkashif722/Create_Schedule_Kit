@@ -82,6 +82,10 @@ extension LearnerScheduleQuizViewModel {
         if let minutes = slot.card.durationMinutes {
             message += " The \(minutes)-minute timer starts as soon as you begin."
         }
+        if let instructions = slot.card.instructions?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !instructions.isEmpty {
+            message += "\n\nInstructions: \(instructions)"
+        }
         presentLearnerQuizAlert(
             title: "Start \(slot.kind.lowercasedTitle)?",
             message: message,

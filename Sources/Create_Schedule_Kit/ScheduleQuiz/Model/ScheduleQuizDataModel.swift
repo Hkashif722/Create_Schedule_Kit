@@ -24,6 +24,9 @@ import NetworkService
 
 enum ScheduleQuizDataModel {
 
+    // org toggle "Show Schedule quiz". GetValue/SCHEDULE_QUIZ, Yes/No like Schfbk
+    static let featureConfigKey = "SCHEDULE_QUIZ"
+
     // MARK: - Endpoints (quiz)
 
     private static func quizPath(_ segments: String...) -> String {
@@ -326,6 +329,29 @@ enum ScheduleQuizDataModel {
         let optionType: String?
         let difficultyLevel: String?
         let marks: Double
+        let options: [QuizOption]?
+    }
+
+    /// Admin read only. Learner endpoints never send the correct flag.
+    struct QuizOption: Decodable {
+        let optionText: String
+        let isCorrectAnswer: Bool
+
+        enum CodingKeys: String, CodingKey { case optionText, isCorrectAnswer, isCorrect }
+
+        init(optionText: String, isCorrectAnswer: Bool) {
+            self.optionText = optionText
+            self.isCorrectAnswer = isCorrectAnswer
+        }
+
+        // bank/package routes say isCorrectAnswer, the result route says isCorrect. take either
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            optionText = try c.decodeIfPresent(String.self, forKey: .optionText) ?? ""
+            isCorrectAnswer = try c.decodeIfPresent(Bool.self, forKey: .isCorrectAnswer)
+                ?? c.decodeIfPresent(Bool.self, forKey: .isCorrect)
+                ?? false
+        }
     }
 
     struct QuizSaveResult: Decodable {

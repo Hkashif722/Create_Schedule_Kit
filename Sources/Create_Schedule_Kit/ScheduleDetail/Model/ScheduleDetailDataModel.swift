@@ -48,8 +48,7 @@ enum ScheduleDetailDataModel {
 
     // MARK: - Payload
 
-    /// Body for `DeleteUserNomination`. `UserIdEncrypted` is the nominee row's numeric id,
-    /// AES-encrypted by the view model — passed through untouched, never decoded.
+    // DeleteUserNomination body. UserIdEncrypted = row's numeric id, AES on prod, plain on uat. vm does it
     struct DeleteNominationPayload: Encodable {
         let scheduleID: Int
         let courseId: Int

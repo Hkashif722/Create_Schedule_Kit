@@ -24,6 +24,15 @@ final class QuizEditorViewModel: BaseViewModel {
         let messages: [String]
     }
 
+    /// What follows a question save.
+    enum AfterSaveStep {
+        case none
+        /// "Add Post/Pre-Schedule Quiz?" while the other slot is empty.
+        case promptOtherQuiz
+        /// Wizard with both slots taken: pop and run its Finish (nominate prompt).
+        case finishWizard
+    }
+
     let navModel: NavigationViewModel.QuizEditorNavModel
 
     @Published private(set) var summary: DM.QuizSummary?
@@ -35,7 +44,7 @@ final class QuizEditorViewModel: BaseViewModel {
 
     /// What the last load/save left on the server — the "unsaved changes" baseline.
     private var baseline: DM.SaveQuizPayload?
-    private var hasPromptedOtherQuiz = false
+    private var hasPromptedNextStep = false
 
     init(router: AnyRouter, navModel: NavigationViewModel.QuizEditorNavModel) {
         self.navModel = navModel
@@ -334,13 +343,13 @@ extension QuizEditorViewModel {
     }
 
     /// The server's save notes must be acknowledged (dropped duplicates, removed questions,
-    /// changed marks). Then, once, the Figma prompt to set up the other slot — only after a
-    /// save that actually changed the questions, not a settings-only one.
+    /// changed marks). Then, once, the Figma prompt to set up the other slot — or, in the wizard
+    /// with both slots taken, straight on to its finish — only after a save that changed questions.
     @MainActor
     private func afterSave(messages: [String], questionCount: Int, promptsOther wantsPrompt: Bool) {
-        let promptsOther = wantsPrompt && questionCount > 0 && !hasPromptedOtherQuiz && navModel.isOtherSlotEmpty()
+        let step = afterSaveStep(questionCount: questionCount, wantsPrompt: wantsPrompt)
         guard !messages.isEmpty else {
-            if promptsOther { promptOtherQuiz(questionCount: questionCount) }
+            run(step, questionCount: questionCount)
             return
         }
         let model = CustomAlertPopupModel(
@@ -357,19 +366,34 @@ extension QuizEditorViewModel {
             primaryButtonTitle: "OK",
             primaryAction: { [weak self] in
                 self?.router.dismissModal()
-                guard promptsOther else { return }
+                if case .none = step { return }
                 Task { @MainActor [weak self] in
                     try? await Task.sleep(nanoseconds: 350_000_000)
-                    self?.promptOtherQuiz(questionCount: questionCount)
+                    self?.run(step, questionCount: questionCount)
                 }
             }
         )
         showPopup(model)
     }
 
+    private func afterSaveStep(questionCount: Int, wantsPrompt: Bool) -> AfterSaveStep {
+        guard wantsPrompt, questionCount > 0, !hasPromptedNextStep else { return .none }
+        if navModel.isOtherSlotEmpty() { return .promptOtherQuiz }
+        return navModel.onFinish != nil ? .finishWizard : .none
+    }
+
+    @MainActor
+    private func run(_ step: AfterSaveStep, questionCount: Int) {
+        switch step {
+        case .none:            return
+        case .promptOtherQuiz: promptOtherQuiz(questionCount: questionCount)
+        case .finishWizard:    finishWizard()
+        }
+    }
+
     @MainActor
     private func promptOtherQuiz(questionCount: Int) {
-        hasPromptedOtherQuiz = true
+        hasPromptedNextStep = true
         let other = kind.other
         let model = CustomAlertPopupModel(
             title: "Questions Added Successfully!",
@@ -385,9 +409,21 @@ extension QuizEditorViewModel {
                 self.navModel.onAddOtherQuiz()
             },
             secondaryButtonTitle: "No, Skip",
-            secondaryAction: { [weak self] in self?.router.dismissModal() }
+            secondaryAction: { [weak self] in
+                guard let self else { return }
+                self.router.dismissModal()
+                // wizard: skipping the other quiz = done, go nominate
+                if self.navModel.onFinish != nil { self.finishWizard() }
+            }
         )
         showPopup(model)
+    }
+
+    @MainActor
+    private func finishWizard() {
+        hasPromptedNextStep = true
+        router.dismissScreen()
+        navModel.onFinish?()
     }
 }
 

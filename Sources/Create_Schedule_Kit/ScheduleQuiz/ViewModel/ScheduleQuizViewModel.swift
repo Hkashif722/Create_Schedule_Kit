@@ -2,9 +2,9 @@
 //  ScheduleQuizViewModel.swift
 //  Create_Schedule_Kit
 //
-//  The Pre and Post slots of one schedule. A slot's switch is on when the server has a quiz in
-//  it: turning it on opens "Create pre quiz", turning it off deletes (with the attempts
-//  re-confirm the API asks for). The quiz itself is built in `QuizEditorView`.
+//  The Pre and Post slots of one schedule. An empty slot offers "Create pre quiz", a filled one
+//  Edit / Delete (with the attempts re-confirm the API asks for). Same as web, no on/off switch.
+//  The quiz itself is built in `QuizEditorView`.
 //
 //  Used twice: pushed on its own from a schedule card / Schedule Details, and embedded as the
 //  wizard's last step once the schedule exists (the quiz API needs its id).
@@ -34,9 +34,9 @@ final class ScheduleQuizViewModel: BaseViewModel {
 
     @Published private(set) var quizzes: DM.ScheduleQuizzes?
     @Published private(set) var loadFailed = false
-    /// Switch flipped on while the create sheet is up, so it doesn't snap back under the sheet.
+    /// Create sheet is up for this slot. Blocks a 2nd sheet / double editor push.
     @Published private(set) var pendingCreate: DM.QuizKind?
-    /// Switch flipped off while the delete confirmation is up.
+    /// Delete confirm is up for this slot.
     @Published private(set) var pendingDelete: DM.QuizKind?
 
     /// Sheet → push hand-offs need the sheet fully gone first, same as the wizard's nominate step.
@@ -56,20 +56,14 @@ extension ScheduleQuizViewModel {
 
     func quiz(_ kind: DM.QuizKind) -> DM.QuizSummary? { quizzes?.quiz(kind) }
 
-    func isEnabled(_ kind: DM.QuizKind) -> Bool {
-        if pendingCreate == kind { return true }
-        if pendingDelete == kind { return false }
-        return quiz(kind) != nil
-    }
-
-    func canToggle(_ kind: DM.QuizKind) -> Bool {
+    var isSlotActionEnabled: Bool {
         hasLoaded && pendingCreate == nil && pendingDelete == nil && !loadingState.isLoading
     }
 
     func emptySlotText(_ kind: DM.QuizKind) -> String {
         kind == .pre
-            ? "Learners take it before the session. Turn it on to create it and add questions."
-            : "Learners take it after the session. Turn it on to create it and add questions."
+            ? "Learners take it before the session starts."
+            : "Learners take it after the session. Create it now and add questions in the editor."
     }
 }
 
@@ -109,13 +103,9 @@ extension ScheduleQuizViewModel {
 // MARK: - Actions
 extension ScheduleQuizViewModel {
 
-    func setEnabled(_ kind: DM.QuizKind, isOn: Bool) {
-        guard canToggle(kind), isOn != isEnabled(kind) else { return }
-        if isOn {
-            openCreate(kind)
-        } else {
-            confirmDelete(kind)
-        }
+    func didTapCreate(_ kind: DM.QuizKind) {
+        guard isSlotActionEnabled else { return }
+        openCreate(kind)
     }
 
     func didTapEdit(_ kind: DM.QuizKind) {
@@ -124,7 +114,7 @@ extension ScheduleQuizViewModel {
     }
 
     func didTapDelete(_ kind: DM.QuizKind) {
-        guard canToggle(kind), quiz(kind) != nil else { return }
+        guard isSlotActionEnabled, quiz(kind) != nil else { return }
         confirmDelete(kind)
     }
 
@@ -201,7 +191,14 @@ extension ScheduleQuizViewModel {
                     try? await Task.sleep(nanoseconds: self.presentationDelay)
                     self.openCreate(kind.other)
                 }
-            }
+            },
+            onFinish: presentation.isWizardStep ? { [weak self] in
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    try? await Task.sleep(nanoseconds: self.presentationDelay)
+                    self.didTapFinish()
+                }
+            } : nil
         )
         NavigationService.shared.navigate(using: router, to: AppNavigationDestination.quizEditor(navModel))
     }

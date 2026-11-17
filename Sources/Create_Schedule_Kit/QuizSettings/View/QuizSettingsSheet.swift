@@ -63,9 +63,11 @@ private extension QuizSettingsSheet {
                 cornerRadius: 12,
                 borderColor: Color(.systemGray4),
                 backgroundColor: Color(.systemBackground),
-                maxCharacters: 1000,
+                maxCharacters: QuizSettingsDataModel.instructionsLimit,
                 onTextChanged: { text, _ in viewModel.form.instructions = text }
             )
+            CSCharacterLimitHint(count: viewModel.form.instructions.count,
+                                 limit: QuizSettingsDataModel.instructionsLimit)
         }
     }
 

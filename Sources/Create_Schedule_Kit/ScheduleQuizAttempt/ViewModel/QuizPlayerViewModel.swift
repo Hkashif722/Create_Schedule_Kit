@@ -41,6 +41,7 @@ final class QuizPlayerViewModel: BaseViewModel {
     @Published private(set) var isSubmitting = false
     /// Start answered "already taken": the failure screen offers the result instead of a dead end.
     @Published private(set) var canViewResult = false
+    @Published private(set) var quizInstructions: String?
 
     // MARK: - Private
     private var attemptID: Int?
@@ -90,6 +91,14 @@ extension QuizPlayerViewModel {
         guard let instruction = currentQuestion?.learnerInstruction?.trimmingCharacters(in: .whitespacesAndNewlines),
               !instruction.isEmpty else { return nil }
         return instruction
+    }
+
+    // web shows quiz instructions on Q1 only
+    var quizInstructionsText: String? {
+        guard isFirstQuestion,
+              let text = quizInstructions?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !text.isEmpty else { return nil }
+        return text
     }
 
     var isMultipleSelection: Bool { currentQuestion?.isMultiple == true }
@@ -166,6 +175,16 @@ extension QuizPlayerViewModel {
         // Time's up: no point asking, the server won't take more answers anyway.
         guard unansweredCount > 0, !isTimeUp, !answersClosed else {
             startSubmit()
+            return
+        }
+        guard answeredCount > 0 else {
+            presentLearnerQuizAlert(
+                title: "Attempt at least one question",
+                message: "Please answer at least one question before submitting the quiz.",
+                alertType: .warning,
+                primaryTitle: "OK",
+                onPrimary: {}
+            )
             return
         }
         let count = unansweredCount
@@ -258,6 +277,7 @@ extension QuizPlayerViewModel {
                 return
             }
             attemptID = response.attemptId
+            quizInstructions = response.instructions
             questions = response.questions
             sheet = DM.AnswerSheet(questions: response.questions)
             currentIndex = response.startIndex
