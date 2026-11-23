@@ -18,6 +18,9 @@ final class ScheduleLogisticsViewModel: BaseViewModel {
     /// Edit mode unlocks the contact number field. Coordinator name stays read-only in
     /// both modes — it follows the training place.
     let isEditMode: Bool
+    /// Offline needs a room. Online has no venue, so the place is optional there.
+    /// Step 1 owns the mode and this VM is rebuilt per step, so reading it once is enough.
+    let isTrainingPlaceRequired: Bool
     private let onBack: () -> Void
     private let onContinue: () -> Void
 
@@ -59,6 +62,7 @@ final class ScheduleLogisticsViewModel: BaseViewModel {
     init(router: AnyRouter, draft: ScheduleDraft, isEditMode: Bool = false, onBack: @escaping () -> Void, onContinue: @escaping () -> Void) {
         self.draft = draft
         self.isEditMode = isEditMode
+        self.isTrainingPlaceRequired = draft.deliveryMode == .offline
         self.onBack = onBack
         self.onContinue = onContinue
         super.init(router: router)
@@ -117,7 +121,7 @@ extension ScheduleLogisticsViewModel {
         if !hasVenueOwner {
             return placeType == .internal ? "Select an academy name." : "Enter an agency name."
         }
-        if selectedTrainingPlace == nil { return "Select a training place." }
+        if isTrainingPlaceRequired, selectedTrainingPlace == nil { return "Select a training place." }
         if selectedTrainers.isEmpty { return "Add at least one trainer." }
         return nil
     }

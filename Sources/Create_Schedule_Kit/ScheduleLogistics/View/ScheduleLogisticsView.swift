@@ -162,7 +162,7 @@ private extension ScheduleLogisticsView {
 
     var trainingPlaceField: some View {
         VStack(alignment: .leading, spacing: 6) {
-            CSFieldLabel(title: "Training place name")
+            CSFieldLabel(title: "Training place name", isRequired: viewModel.isTrainingPlaceRequired)
             DropDownMenuListViewPkg(
                 viewModel.trainingPlaceResults,
                 placeholder: "Type to search venues…",

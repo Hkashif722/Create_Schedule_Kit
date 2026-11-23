@@ -41,7 +41,7 @@ private extension QuizBankPickerSheet {
         VStack(alignment: .leading, spacing: 10) {
             CSSearchField(
                 text: $viewModel.searchText,
-                placeholder: "Search questions",
+                placeholder: "Search Question Text or Metadata",
                 isSearching: viewModel.isSearching,
                 onTextChanged: viewModel.onSearchChanged
             )
