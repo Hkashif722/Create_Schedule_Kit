@@ -18,7 +18,7 @@ let package = Package(
     dependencies: [
         .package(
             url: "https://dev.azure.com/EnthralltechDevOps/IOS_APIManager/_git/IOS_APIManager",
-            branch: "wcag_changes"
+            branch: "add_download_method_bug_fixes"
         ),
         .package(
             url: "https://github.com/Hkashif722/SwiftUIUtility",
@@ -31,7 +31,7 @@ let package = Package(
         // same branch IOS-OGT_Package pins. two branches of one pkg = spm wont resolve the app
         .package(
             url: "https://github.com/Hkashif722/AssessmenyKitPackage.git",
-            branch: "fix/add-question-for-option-type"
+            branch: "wcag_changes"
         )
     ],
     targets: [

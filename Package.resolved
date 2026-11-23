@@ -5,8 +5,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Hkashif722/AssessmenyKitPackage.git",
       "state" : {
-        "branch" : "fix/add-question-for-option-type",
-        "revision" : "d535dbab10c339ef962968f482eaf27291e9d1b3"
+        "branch" : "wcag_changes",
+        "revision" : "f63c6ffba00874e59851643374df9f706e16a639"
       }
     },
     {
