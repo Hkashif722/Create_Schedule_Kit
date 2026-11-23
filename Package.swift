@@ -18,7 +18,7 @@ let package = Package(
     dependencies: [
         .package(
             url: "https://dev.azure.com/EnthralltechDevOps/IOS_APIManager/_git/IOS_APIManager",
-            branch: "add_download_method_bug_fixes"
+            branch: "wcag_changes"
         ),
         .package(
             url: "https://github.com/Hkashif722/SwiftUIUtility",
