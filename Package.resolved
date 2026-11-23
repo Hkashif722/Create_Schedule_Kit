@@ -62,6 +62,15 @@
         "revision" : "bf0a8b4628b0e24d60f090b382c15b96329ab92c",
         "version" : "5.3.6"
       }
+    },
+    {
+      "identity" : "swiftuiutility",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Hkashif722/SwiftUIUtility",
+      "state" : {
+        "branch" : "update",
+        "revision" : "e8a0f54265e3c4279c2c4debe8923fcb09f2036a"
+      }
     }
   ],
   "version" : 2

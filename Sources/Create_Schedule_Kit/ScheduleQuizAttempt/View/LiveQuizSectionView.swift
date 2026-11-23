@@ -14,6 +14,7 @@ import SwiftUIUtilities
 struct LiveQuizSectionView: View {
 
     @StateObject private var viewModel: LearnerScheduleQuizViewModel
+    @Environment(\.scenePhase) private var scenePhase
 
     init(router: AnyRouter, scheduleID: Int) {
         _viewModel = StateObject(
@@ -30,6 +31,9 @@ struct LiveQuizSectionView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .onAppear { viewModel.onAppear() }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active { viewModel.onBecameActive() }
+        }
     }
 }
 
@@ -43,7 +47,9 @@ private extension LiveQuizSectionView {
                 .foregroundStyle(.primary)
                 .accessibilityAddTraits(.isHeader)
             ForEach(viewModel.slots) { slot in
-                LiveQuizRowView(slot: slot) { viewModel.didTapSlot(slot) }
+                LiveQuizRowView(slot: slot, isChecking: viewModel.checkingKind == slot.kind) {
+                    viewModel.didTapSlot(slot)
+                }
             }
         }
         .padding(.top, 12)

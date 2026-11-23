@@ -13,6 +13,8 @@ struct LiveQuizRowView: View {
     typealias DM = ScheduleQuizAttemptDataModel
 
     let slot: LearnerQuizSlot
+    /// Start tap is waiting on the server re-check
+    var isChecking: Bool = false
     let onTap: () -> Void
 
     private var status: DM.CardStatus { slot.card.status }
@@ -29,6 +31,7 @@ struct LiveQuizRowView: View {
         } else {
             Button(action: onTap) { rowContent }
                 .buttonStyle(.plain)
+                .disabled(isChecking)
         }
     }
 }
@@ -58,7 +61,11 @@ private extension LiveQuizRowView {
                     .background { Capsule().fill(Color.blue.opacity(0.12)) }
                     .fixedSize()
             }
-            if !isLocked {
+            if isChecking {
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityLabel("Checking")
+            } else if !isLocked {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.secondary)
@@ -112,6 +119,8 @@ private extension LiveQuizRowView {
             return "Start quiz"
         case .inProgress(let remaining):
             guard let remaining else { return "Resume quiz" }
+            // window/timer ran out with the attempt still open. opening it just submits
+            if remaining <= 0 { return "Time's up · Submit quiz" }
             return "Resume quiz · \(DM.Countdown.clockText(remaining)) left"
         case .submitted:
             return "View result"
@@ -142,7 +151,7 @@ private extension LiveQuizRowView {
                                                             reason: "You have already taken this quiz.",
                                                             score: score)), onTap: {})
         LiveQuizRowView(slot: .init(kind: .post, card: card(state: .notStarted, eligible: false,
-                                                             reason: "The post quiz opens once your attendance for this schedule is marked completed.")),
+                                                             reason: "The post quiz opens at 17 Nov 2026, 05:30 PM.")),
                         onTap: {})
         LiveQuizRowView(slot: .init(kind: .pre, card: card(state: .notStarted)), onTap: {})
         LiveQuizRowView(slot: .init(kind: .post, card: card(state: .inProgress)), onTap: {})

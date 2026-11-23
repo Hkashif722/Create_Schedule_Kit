@@ -246,7 +246,7 @@ private extension ScheduleBasicDetailsView {
     @ViewBuilder
     var timezoneField: some View {
         VStack(alignment: .leading, spacing: 6) {
-            CSFieldLabel(title: "Time zone")
+            CSFieldLabel(title: "Time zone", isRequired: !viewModel.isEditMode)
             if viewModel.timezones.isEmpty {
                 timezonePlaceholder
             } else {

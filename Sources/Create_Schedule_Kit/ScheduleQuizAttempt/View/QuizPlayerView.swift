@@ -117,7 +117,7 @@ private extension QuizPlayerView {
         case .finished(let result):
             QuizResultContentView(
                 result: result,
-                notice: viewModel.isTimeUp ? "Time is up. Your quiz has been submitted." : nil,
+                notice: viewModel.endedByTime ? "Time is up. Your quiz has been submitted." : nil,
                 onDone: viewModel.didTapDone
             )
         }
@@ -240,6 +240,6 @@ private extension QuizPlayerView {
     @Previewable @Environment(\.router) var router
     QuizPlayerView(
         router: router,
-        navModel: .init(quizID: 97, kind: .pre, title: "class56 — pre check", onClose: {})
+        navModel: .init(quizID: 97, scheduleID: 4811, kind: .pre, title: "class56 — pre check", onClose: {})
     )
 }

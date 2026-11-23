@@ -219,6 +219,7 @@ extension ScheduleBasicDetailsViewModel {
         if selectedCourse == nil { return "Select a course." }
         if selectedModule == nil { return "Select a module." }
         if deliveryMode == .online, webinarType == nil { return "Select a webinar type." }
+        if !isEditMode, selectedTimezone == nil { return "Select a time zone." }
         // The hand-entered Teams link is required once the tenant unlocks it.
         if requiresTeamsLink, !WebinarLinkRules.isValidLink(teamsLink) {
             return "Enter a valid meeting link starting with https://"
@@ -555,6 +556,8 @@ extension ScheduleBasicDetailsViewModel {
                 type: [ScheduleBasicDetailsDataModel.TimezoneItem].self,
                 model: ScheduleBasicDetailsDataModel.TimezonesRequest()
             )
+            // tz "" -> PostWithMeeting 200s w/ no meeting. web preselects [0] too
+            if selectedTimezone == nil, !isEditMode { selectedTimezone = results.first }
             timezones = results
         } catch {
             handleAPIError(error, resetLoadingState: true, showToast: false)

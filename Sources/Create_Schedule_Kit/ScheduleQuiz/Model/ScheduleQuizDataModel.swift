@@ -9,7 +9,7 @@
 //   • ILTScheduleQuiz/Schedule/{scheduleId}   GET  → ScheduleQuizzes     POST → IDResponse (create)
 //   • ILTScheduleQuiz/{id}                    GET  → QuizDetail          POST → QuizSaveResult
 //   • ILTScheduleQuiz/{id}/Publish            POST → IDResponse
-//   • ILTScheduleQuiz/{id}[?confirm=true]     DELETE → APIMessage
+//   • ILTScheduleQuiz/{id}                    DELETE → APIMessage (409 once learners started it)
 //   • ILTScheduleQuiz/GetBankQuestions        POST → Page<BankQuestion>
 //   • ILTScheduleQuiz/InlineQuestion          POST → IDResponse (new bank question id)
 //   • QuestionPackage/GetPackages             POST → Page<PackageListItem>
@@ -77,12 +77,11 @@ enum ScheduleQuizDataModel {
         var headers: [String: String]? { nil }
     }
 
-    /// First call goes without `confirm`. If learners attempted it the server answers
-    /// 409 `DependancyExist` and wants the same call again with `?confirm=true`.
+    /// Once a learner has started it the server says 409 `DependancyExist` and keeps the quiz.
+    /// no `?confirm=true` anymore, nothing gets past that.
     struct DeleteQuizRequest: EndpointModel {
         let quizID: Int
-        let confirm: Bool
-        var path: String { ScheduleQuizDataModel.quizPath("\(quizID)") + (confirm ? "?confirm=true" : "") }
+        var path: String { ScheduleQuizDataModel.quizPath("\(quizID)") }
         var method: HTTPMethod { .delete }
         var headers: [String: String]? { nil }
     }
@@ -564,4 +563,15 @@ extension Int {
 extension ScheduleQuizDataModel.QuizSummary {
     var passText: String { passPercentage.map { "\($0.marksText)%" } ?? "—" }
     var durationText: String { durationMinutes.map { "\($0) min" } ?? "Untimed" }
+
+    /// a learner started it, server won't delete it anymore. same rule as web
+    var isDeleteBlocked: Bool { isLocked || attemptCount > 0 }
+
+    /// web's 409 line. NetworkService eats the 409 description so we rebuild it here
+    var deleteBlockedMessage: String {
+        let count = attemptCount > 0
+            ? " (\(attemptCount) \(attemptCount == 1 ? "attempt" : "attempts"))"
+            : ""
+        return "Learners have already attempted this quiz\(count), so it can no longer be deleted."
+    }
 }

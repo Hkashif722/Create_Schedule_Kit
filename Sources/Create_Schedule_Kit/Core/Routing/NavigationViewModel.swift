@@ -218,6 +218,8 @@ extension NavigationViewModel {
     // quiz id. `onClose` fires however it ends so the cards behind refresh.
     struct LearnerQuizPlayerNavModel {
         let quizID: Int
+        /// 403 NoAccess drops its text in NetworkService, so the player re-reads the card's reason from here
+        let scheduleID: Int
         let kind: ScheduleQuizDataModel.QuizKind
         let title: String
         let onClose: () -> Void

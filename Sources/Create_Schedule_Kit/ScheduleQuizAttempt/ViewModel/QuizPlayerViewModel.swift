@@ -39,6 +39,8 @@ final class QuizPlayerViewModel: BaseViewModel {
     @Published private(set) var secondsLeft: Int?
     @Published private(set) var isTimeUp = false
     @Published private(set) var isSubmitting = false
+    /// auto submit went through (timer hit 0 or the window shut on an Answer). result shows the time-up line, same as web
+    @Published private(set) var endedByTime = false
     /// Start answered "already taken": the failure screen offers the result instead of a dead end.
     @Published private(set) var canViewResult = false
     @Published private(set) var quizInstructions: String?
@@ -305,9 +307,24 @@ extension QuizPlayerViewModel {
             await startAttempt()
             return
         }
+        if failure == .noAccess {
+            phase = .failed(message: await windowReason() ?? failure.message, canRetry: false)
+            return
+        }
         let message = failure == .other ? apiError.message(fallback: failure.message) : failure.message
         canViewResult = failure == .alreadyTaken && navModel.onViewResult != nil
         phase = .failed(message: message, canRetry: failure == .other || failure == .openElsewhere)
+    }
+
+    /// 403 NoAccess = outside the quiz window. NetworkService eats the body, but the card carries
+    /// the same "opens at / closed at" text, so read it from there.
+    @MainActor
+    private func windowReason() async -> String? {
+        guard let cards = try? await ApiService.shared.requestGetHeader(
+            type: DM.ScheduleQuizCards.self,
+            model: DM.GetQuizCardsRequest(scheduleID: navModel.scheduleID)
+        ) else { return nil }
+        return cards.card(navModel.kind)?.windowReason
     }
 
     /// Every question whose ticks differ from what the server has, not just the current one —
@@ -406,6 +423,8 @@ extension QuizPlayerViewModel {
                 model: DM.SubmitAttemptRequest(attemptID: attemptID),
                 payload: DM.SubmitPayload(idempotencyKey: key)
             )
+            // only a real auto submit. a 409 "already submitted" goes via fetchResult and stays quiet, like web
+            endedByTime = isAuto
             finish(with: result)
         } catch {
             await handleSubmitFailure(error, attemptID: attemptID)

@@ -43,14 +43,42 @@ import NetworkService
         #expect(DM.CreateQuizRequest(scheduleID: 1).method == .post)
         #expect(DM.SaveQuizRequest(quizID: 1).method == .post)
         #expect(DM.PublishQuizRequest(quizID: 1).method == .post)
-        #expect(DM.DeleteQuizRequest(quizID: 1, confirm: false).method == .delete)
+        #expect(DM.DeleteQuizRequest(quizID: 1).method == .delete)
         #expect(DM.GetPackagesRequest().method == .post)
         #expect(DM.GetPackageRequest(packageID: 1).method == .get)
     }
 
-    @Test func deleteOnlyCarriesConfirmOnTheSecondCall() {
-        #expect(DM.DeleteQuizRequest(quizID: 32, confirm: false).path == "/api/v1/ILTScheduleQuiz/32")
-        #expect(DM.DeleteQuizRequest(quizID: 32, confirm: true).path == "/api/v1/ILTScheduleQuiz/32?confirm=true")
+    // no ?confirm=true path anymore, server keeps a started quiz no matter what
+    @Test func deleteNeverCarriesConfirm() {
+        #expect(DM.DeleteQuizRequest(quizID: 32).path == "/api/v1/ILTScheduleQuiz/32")
+    }
+
+    // MARK: - Delete gate
+
+    private func summary(isLocked: Bool, attemptCount: Int) -> DM.QuizSummary {
+        .init(id: 266, quizTypeId: 1, title: "sync pre check", totalQuestions: 3, totalMarks: 3,
+              passPercentage: nil, durationMinutes: 30, showResultToLearner: true,
+              isPublished: true, publishedOn: "17 Nov 2026", isLocked: isLocked, attemptCount: attemptCount)
+    }
+
+    @Test func untouchedQuizCanBeDeleted() {
+        #expect(!summary(isLocked: false, attemptCount: 0).isDeleteBlocked)
+    }
+
+    @Test func startedQuizCantBeDeleted() {
+        #expect(summary(isLocked: true, attemptCount: 2).isDeleteBlocked)
+        #expect(summary(isLocked: true, attemptCount: 0).isDeleteBlocked)
+        #expect(summary(isLocked: false, attemptCount: 1).isDeleteBlocked)
+    }
+
+    // live UAT 409 (SC9927, quiz 266): "...this quiz (2 attempt(s)), so it can no longer be deleted."
+    @Test func blockedMessageMatchesWeb() {
+        #expect(summary(isLocked: true, attemptCount: 2).deleteBlockedMessage
+                == "Learners have already attempted this quiz (2 attempts), so it can no longer be deleted.")
+        #expect(summary(isLocked: true, attemptCount: 1).deleteBlockedMessage
+                == "Learners have already attempted this quiz (1 attempt), so it can no longer be deleted.")
+        #expect(summary(isLocked: true, attemptCount: 0).deleteBlockedMessage
+                == "Learners have already attempted this quiz, so it can no longer be deleted.")
     }
 
     // MARK: - Request bodies

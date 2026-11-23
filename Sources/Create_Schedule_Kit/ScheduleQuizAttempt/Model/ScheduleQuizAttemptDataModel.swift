@@ -157,17 +157,20 @@ enum ScheduleQuizAttemptDataModel {
         let remainingSeconds: Int?
         /// Only once Submitted and the manager shows results.
         let score: Score?
+        /// Window close, server wall-clock ("2026-11-17T20:20:00", no zone). Pre quiz only; post stays open.
+        /// Only checked for presence: no zone on it, so the app never does time math with it.
+        let availableUntil: String?
 
         enum CodingKeys: String, CodingKey {
             case quizId, quizTypeId, title, instructions, totalQuestions, totalMarks, passPercentage
             case durationMinutes, isEligible, ineligibleReason, state, attemptId, attemptsRemaining
-            case remainingSeconds, score
+            case remainingSeconds, score, availableUntil
         }
 
         init(quizId: Int, quizTypeId: Int?, title: String, instructions: String?, totalQuestions: Int,
              totalMarks: Double, passPercentage: Double?, durationMinutes: Int?, isEligible: Bool,
              ineligibleReason: String?, state: AttemptState, attemptId: Int?, attemptsRemaining: Int,
-             remainingSeconds: Int?, score: Score?) {
+             remainingSeconds: Int?, score: Score?, availableUntil: String? = nil) {
             self.quizId = quizId
             self.quizTypeId = quizTypeId
             self.title = title
@@ -183,6 +186,7 @@ enum ScheduleQuizAttemptDataModel {
             self.attemptsRemaining = attemptsRemaining
             self.remainingSeconds = remainingSeconds
             self.score = score
+            self.availableUntil = availableUntil
         }
 
         init(from decoder: Decoder) throws {
@@ -202,6 +206,7 @@ enum ScheduleQuizAttemptDataModel {
             attemptsRemaining = try c.decodeIfPresent(Int.self, forKey: .attemptsRemaining) ?? 0
             remainingSeconds = try c.decodeIfPresent(Int.self, forKey: .remainingSeconds)
             score = try c.decodeIfPresent(Score.self, forKey: .score)
+            availableUntil = try c.decodeIfPresent(String.self, forKey: .availableUntil)
         }
     }
 
@@ -560,11 +565,19 @@ extension ScheduleQuizAttemptDataModel.QuizCard {
         case .inProgress: return .inProgress(remainingSeconds: remainingSeconds)
         case .notStarted:
             guard isEligible else {
-                let reason = ineligibleReason?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                return .ineligible(reason: reason.isEmpty ? "You can't take this quiz right now." : reason)
+                return .ineligible(reason: windowReason ?? "You can't take this quiz right now.")
             }
             return .notStarted
         }
+    }
+
+    /// server's lock text ("The pre quiz opens at…"), nil when blank or the card is open.
+    /// Start's 403 NoAccess carries the same line, so the player falls back to this
+    var windowReason: String? {
+        guard !isEligible, state == .notStarted,
+              let reason = ineligibleReason?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !reason.isEmpty else { return nil }
+        return reason
     }
 
     var passText: String { passPercentage.map { "\($0.marksText)%" } ?? "—" }
@@ -587,6 +600,36 @@ extension ScheduleQuizAttemptDataModel.AttemptResult {
         case .some(true):  return .passed
         case .some(false): return .failed
         case .none:        return .neutral
+        }
+    }
+}
+
+// MARK: - Start re-check
+
+extension ScheduleQuizAttemptDataModel {
+
+    /// What a "Start quiz" tap turns into once the server has looked at the card again.
+    /// The row may have sat open for 15 min, the server clock is the only one that counts.
+    enum StartRecheck: Equatable {
+        /// still open, ask before Start
+        case confirm
+        /// window shut (or moved) meanwhile, show the server's own reason
+        case closed(reason: String)
+        /// attempt already open (other device / tab)
+        case resume
+        /// already submitted elsewhere
+        case result
+        /// slot gone, quiz deleted. rows already redrawn without it
+        case gone
+
+        init(fresh: QuizCard?) {
+            guard let fresh else { self = .gone; return }
+            switch fresh.status {
+            case .notStarted:             self = .confirm
+            case .ineligible(let reason): self = .closed(reason: reason)
+            case .inProgress:             self = .resume
+            case .submitted:              self = .result
+            }
         }
     }
 }
@@ -703,7 +746,8 @@ extension ScheduleQuizAttemptDataModel {
             switch self {
             case .notFound:      return "This quiz is no longer available."
             case .alreadyTaken:  return "You have already taken this quiz."
-            case .noAccess:      return "You're not eligible to take this quiz yet."
+            // fallback only. the real "opens at / closed at" text comes off the card
+            case .noAccess:      return "This quiz isn't open right now."
             case .noQuestions:   return "This quiz has no questions yet. Please check back later."
             case .openElsewhere: return "This quiz is open somewhere else. Please try again."
             case .other:         return AssessmentAPIError.genericMessage

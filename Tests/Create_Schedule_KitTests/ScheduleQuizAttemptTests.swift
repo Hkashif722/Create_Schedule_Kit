@@ -125,6 +125,79 @@ import Testing
         #expect(open.status == .inProgress(remainingSeconds: 30))
     }
 
+    /// Time-window reasons from the server go on the row word for word, and are what the player
+    /// shows when Start answers 403 NoAccess.
+    @Test func windowReasonsLockTheCardVerbatim() throws {
+        let reasons = [
+            "The pre quiz opens at 17 Nov 2026, 05:00 PM.",
+            "The pre quiz closed at 17 Nov 2026, 05:15 PM. It is open only for the first 15 minutes of the session.",
+            "The post quiz opens at 17 Nov 2026, 06:00 PM.",
+        ]
+        for reason in reasons {
+            let card = try decode(DM.QuizCard.self, """
+            {"quizId": 1, "state": "NotStarted", "isEligible": false, "ineligibleReason": "  \(reason) "}
+            """)
+            #expect(card.status == .ineligible(reason: reason))
+            #expect(card.windowReason == reason)
+        }
+
+        let blank = try decode(DM.QuizCard.self, #"{"quizId": 1, "state": "NotStarted", "isEligible": false, "ineligibleReason": " "}"#)
+        #expect(blank.windowReason == nil)
+        let eligible = try decode(DM.QuizCard.self, #"{"quizId": 1, "state": "NotStarted", "isEligible": true, "ineligibleReason": "x"}"#)
+        #expect(eligible.windowReason == nil)
+        // taken quiz is flagged ineligible too, but that's a result, not a window
+        let taken = try decode(DM.QuizCard.self, #"{"quizId": 1, "state": "Submitted", "isEligible": false, "ineligibleReason": "You have already taken this quiz."}"#)
+        #expect(taken.windowReason == nil)
+    }
+
+    /// Live UAT SC9927: a 30-min pre quiz started at 20:06 got 837 s, capped at `availableUntil`.
+    @Test func windowCloseIsDecodedButNeverParsed() throws {
+        let pre = try decode(DM.QuizCard.self, """
+        {"quizId": 1, "state": "NotStarted", "isEligible": true, "durationMinutes": 30,
+         "availableFrom": "2026-11-17T20:05:00", "availableUntil": "2026-11-17T20:20:00"}
+        """)
+        #expect(pre.availableUntil == "2026-11-17T20:20:00")
+        let post = try decode(DM.QuizCard.self, #"{"quizId": 2, "state": "NotStarted", "isEligible": true, "availableUntil": null}"#)
+        #expect(post.availableUntil == nil)
+    }
+
+    /// Row loaded 10:05, tapped 10:20: the fresh card decides, not the stale one.
+    @Test func startTapFollowsTheFreshCard() throws {
+        let closed = try decode(DM.QuizCard.self, """
+        {"quizId": 1, "state": "NotStarted", "isEligible": false,
+         "ineligibleReason": "The pre quiz closed at 17 Nov 2026 10:15 AM. It was available only for the first 15 minutes of the session."}
+        """)
+        #expect(DM.StartRecheck(fresh: closed)
+                == .closed(reason: "The pre quiz closed at 17 Nov 2026 10:15 AM. It was available only for the first 15 minutes of the session."))
+
+        let open = try decode(DM.QuizCard.self, #"{"quizId": 1, "state": "NotStarted", "isEligible": true}"#)
+        #expect(DM.StartRecheck(fresh: open) == .confirm)
+
+        let startedElsewhere = try decode(DM.QuizCard.self, #"{"quizId": 1, "state": "InProgress", "isEligible": true, "remainingSeconds": 120}"#)
+        #expect(DM.StartRecheck(fresh: startedElsewhere) == .resume)
+
+        let doneElsewhere = try decode(DM.QuizCard.self, #"{"quizId": 1, "state": "Submitted", "isEligible": false, "attemptId": 9}"#)
+        #expect(DM.StartRecheck(fresh: doneElsewhere) == .result)
+
+        #expect(DM.StartRecheck(fresh: nil) == .gone)
+    }
+
+    /// Attempt left open past the window comes back with 0 seconds: submit-only.
+    @Test func anAttemptPastTheWindowHasNoTimeLeft() throws {
+        let card = try decode(DM.QuizCard.self, #"{"quizId": 1, "state": "InProgress", "isEligible": false, "attemptId": 5, "remainingSeconds": 0}"#)
+        #expect(card.status == .inProgress(remainingSeconds: 0))
+
+        let start = try decode(DM.StartResponse.self, """
+        {"attemptId": 5, "remainingSeconds": 0, "isResumed": true,
+         "questions": [{"attemptQuestionId": 1, "sortOrder": 1, "questionText": "Q", "optionType": "SingleSelection",
+                        "options": [{"id": 1, "optionText": "a"}]}]}
+        """)
+        #expect(start.remainingSeconds == 0)
+        var countdown = DM.Countdown()
+        countdown.reset(remainingSeconds: start.remainingSeconds ?? -1)
+        #expect(countdown.secondsLeft() == 0)
+    }
+
     /// Live UAT `GET ILTScheduleQuizAttempt/Schedule/4811`: a taken quiz comes back ineligible.
     @Test func aTakenQuizStillOffersItsResult() throws {
         let cards = try decode(DM.ScheduleQuizCards.self, """
@@ -448,6 +521,11 @@ import Testing
         // NetworkService hands 409 back as serverError carrying only `message`.
         let wrapped = try #require(AssessmentAPIError(APIError.serverError(statusCode: 409, message: "AttemptExist")))
         #expect(DM.StartFailure(wrapped) == .alreadyTaken)
+
+        // outside the window: 403 NoAccess, description gone, so the player reads the card instead
+        let window = try #require(AssessmentAPIError(APIError.serverError(statusCode: 403, message: "NoAccess")))
+        #expect(DM.StartFailure(window) == .noAccess)
+        #expect(window.description == nil)
     }
 
     @Test func answerFailuresDecideWhetherToSubmit() {

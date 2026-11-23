@@ -3,7 +3,7 @@
 //  Create_Schedule_Kit
 //
 //  The Pre and Post slots of one schedule. An empty slot offers "Create pre quiz", a filled one
-//  Edit / Delete (with the attempts re-confirm the API asks for). Same as web, no on/off switch.
+//  Edit / Delete. Delete is refused once a learner started the quiz. Same as web, no on/off switch.
 //  The quiz itself is built in `QuizEditorView`.
 //
 //  Used twice: pushed on its own from a schedule card / Schedule Details, and embedded as the
@@ -114,7 +114,12 @@ extension ScheduleQuizViewModel {
     }
 
     func didTapDelete(_ kind: DM.QuizKind) {
-        guard isSlotActionEnabled, quiz(kind) != nil else { return }
+        guard isSlotActionEnabled, let quiz = quiz(kind) else { return }
+        // already started, server says no anyway. skip the call
+        if quiz.isDeleteBlocked {
+            showDeleteBlocked(quiz)
+            return
+        }
         confirmDelete(kind)
     }
 
@@ -221,7 +226,7 @@ extension ScheduleQuizViewModel {
             primaryButtonTitle: "Delete",
             primaryAction: { [weak self] in
                 self?.router.dismissModal()
-                Task { [weak self] in await self?.delete(quiz: quiz, kind: kind, confirm: false) }
+                Task { [weak self] in await self?.delete(quiz: quiz, kind: kind) }
             },
             secondaryButtonTitle: "Cancel",
             secondaryAction: { [weak self] in
@@ -232,30 +237,19 @@ extension ScheduleQuizViewModel {
         showPopup(model)
     }
 
-    /// Learners already attempted it: the API wants the call repeated with `confirm=true`.
-    /// Their results are kept for reporting either way.
-    @MainActor
-    private func confirmDeleteWithAttempts(quiz: DM.QuizSummary, kind: DM.QuizKind) {
-        let attempts = quiz.attemptCount
-        let lead = attempts > 0
-            ? "\(attempts) learner \(attempts == 1 ? "attempt exists" : "attempts exist") for this quiz."
-            : "Learners have already attempted this quiz."
+    /// Learner already started it. Just say so, no way around it (web has none either).
+    private func showDeleteBlocked(_ quiz: DM.QuizSummary) {
         let model = CustomAlertPopupModel(
-            title: "Delete anyway?",
+            title: "Can't delete this quiz",
             alertType: .warning,
             content: {
-                Text("\(lead) Learner results are kept.")
+                Text(quiz.deleteBlockedMessage)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding()
             },
-            primaryButtonTitle: "Delete anyway",
+            primaryButtonTitle: "OK",
             primaryAction: { [weak self] in
-                self?.router.dismissModal()
-                Task { [weak self] in await self?.delete(quiz: quiz, kind: kind, confirm: true) }
-            },
-            secondaryButtonTitle: "Cancel",
-            secondaryAction: { [weak self] in
-                self?.pendingDelete = nil
                 self?.router.dismissModal()
             }
         )
@@ -263,22 +257,25 @@ extension ScheduleQuizViewModel {
     }
 
     @MainActor
-    private func delete(quiz: DM.QuizSummary, kind: DM.QuizKind, confirm: Bool) async {
+    private func delete(quiz: DM.QuizSummary, kind: DM.QuizKind) async {
         loadingState = .loading(message: "Deleting quiz...")
         do {
             _ = try await ApiService.shared.requestDeleteHeader(
                 type: DM.APIMessage.self,
-                model: DM.DeleteQuizRequest(quizID: quiz.id, confirm: confirm)
+                model: DM.DeleteQuizRequest(quizID: quiz.id)
             )
             await load(showsLoader: false)
             pendingDelete = nil
             toast = Toast(style: .success, message: "\(kind.shortTitle) deleted.")
         } catch {
             let apiError = AssessmentAPIError(error)
-            if !confirm, apiError?.statusCode == 409 {
+            // card was stale, a learner got in after we loaded. refetch so it shows Locked
+            if apiError?.statusCode == 409 {
                 loadingState = .none
+                await load(showsLoader: false)
+                pendingDelete = nil
                 try? await Task.sleep(nanoseconds: presentationDelay)
-                confirmDeleteWithAttempts(quiz: quiz, kind: kind)
+                showDeleteBlocked(self.quiz(kind) ?? quiz)
                 return
             }
             pendingDelete = nil
