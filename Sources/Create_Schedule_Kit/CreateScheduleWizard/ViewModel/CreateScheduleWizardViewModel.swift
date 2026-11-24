@@ -201,6 +201,8 @@ extension CreateScheduleWizardViewModel {
                 toast = Toast(style: .error, message: response.serverMessage ?? "Could not create schedule.")
                 return
             }
+            // wizard's still up after this (quiz step or nominate prompt), so toast here. list doesn't
+            toast = Toast(style: .success, message: "Schedule created successfully.")
             guard isQuizEnabled else {
                 loadingState = .none
                 finishCreate()

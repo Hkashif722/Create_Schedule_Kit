@@ -83,31 +83,14 @@ struct NominateUsersView: View {
 private extension NominateUsersView {
 
     var columnRow: some View {
-        HStack(spacing: 10) {
-            DropDownMenuListViewPkg(
-                viewModel.columns,
-                placeholder: "Select",
-                selectedOption: viewModel.selectedColumn,
-                isSearchable: false,
-                maxContentHeight: 450,
-                onSelection: { viewModel.selectColumn($0) }
-            )
-
-            // Advanced filter — not yet designed. Placeholder affordance.
-            Button {
-                // TODO: advanced filter sheet (pending design).
-            } label: {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(CSTheme.primaryColor)
-                    .frame(width: 52, height: 52)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color(.systemGray4), lineWidth: 1)
-                    )
-            }
-            .buttonStyle(.plain)
-        }
+        DropDownMenuListViewPkg(
+            viewModel.columns,
+            placeholder: "Select",
+            selectedOption: viewModel.selectedColumn,
+            isSearchable: false,
+            maxContentHeight: 450,
+            onSelection: { viewModel.selectColumn($0) }
+        )
     }
 
     var searchSection: some View {
