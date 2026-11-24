@@ -35,6 +35,10 @@ import Testing
         draft.module = .init(id: 662, title: "662_course 2810", type: "classroom",
                              courseFee: 0, currency: "", category: nil, subCategory: nil, subSubCategory: nil)
         draft.deliveryMode = .offline
+        draft.timezone = .init(
+            value: "India Standard Time", code: "IST", offset: 5.5, isdst: false,
+            name: "(UTC+05:30) Chennai, Kolkata, Mumbai, New Delhi"
+        )
         let day = Date()
         draft.startDate = day
         draft.endDate = day
@@ -45,10 +49,15 @@ import Testing
     }
 
     @MainActor
-    private func viewModel(_ draft: ScheduleDraft, onContinue: @escaping () -> Void = {}) -> ScheduleBasicDetailsViewModel {
+    private func viewModel(
+        _ draft: ScheduleDraft,
+        isEditMode: Bool = false,
+        onContinue: @escaping () -> Void = {}
+    ) -> ScheduleBasicDetailsViewModel {
         ScheduleBasicDetailsViewModel(
             router: RouterEnvironmentKey.defaultValue,
             draft: draft,
+            isEditMode: isEditMode,
             onBack: {},
             onContinue: onContinue
         )
@@ -63,11 +72,22 @@ import Testing
     }
 
     @MainActor
-    @Test func timezoneIsOptional() {
+    @Test func timezoneIsRequiredWhenCreating() {
         let draft = completeOfflineDraft()
         draft.timezone = nil
 
-        #expect(viewModel(draft).canContinue)
+        let model = viewModel(draft)
+        #expect(model.canContinue == false)
+        #expect(model.validationMessage == "Select a time zone.")
+    }
+
+    // edit flow keeps whatever tz the schedule had, so a missing one doesn't block
+    @MainActor
+    @Test func timezoneIsOptionalWhenEditing() {
+        let draft = completeOfflineDraft()
+        draft.timezone = nil
+
+        #expect(viewModel(draft, isEditMode: true).canContinue)
     }
 
     @MainActor
@@ -121,6 +141,38 @@ import Testing
         #expect(didContinue == false)
         #expect(model.toast?.message == "Select a module.")
         #expect(model.toast?.style == .warning)
+    }
+
+    // no delivery picker on screen, so the picked module has to drive it
+    @MainActor
+    @Test func pickedModuleDrivesDeliveryMode() {
+        let model = viewModel(completeOfflineDraft())
+        let vilt = ScheduleBasicDetailsDataModel.ModuleItem(
+            id: 663, title: "663_course 2810", type: "VILT",
+            courseFee: 0, currency: "", category: nil, subCategory: nil, subSubCategory: nil
+        )
+        let classroom = ScheduleBasicDetailsDataModel.ModuleItem(
+            id: 664, title: "664_course 2810", type: "classroom",
+            courseFee: 0, currency: "", category: nil, subCategory: nil, subSubCategory: nil
+        )
+
+        model.didSelectModule(vilt)
+        #expect(model.deliveryMode == .online)
+        #expect(model.showWebinarSection)
+        #expect(model.validationMessage == "Select a webinar type.")
+
+        model.didSelectModule(classroom)
+        #expect(model.deliveryMode == .offline)
+        #expect(model.showWebinarSection == false)
+        #expect(model.validationMessage == nil)
+    }
+
+    @Test func moduleTypeMapsToDeliveryMode() {
+        #expect(DeliveryMode(moduleType: "vilt") == .online)
+        #expect(DeliveryMode(moduleType: "VILT") == .online)
+        #expect(DeliveryMode(moduleType: "classroom") == .offline)
+        #expect(DeliveryMode(moduleType: nil) == .offline)
+        #expect(DeliveryMode(moduleType: "") == .offline)
     }
 
     @MainActor

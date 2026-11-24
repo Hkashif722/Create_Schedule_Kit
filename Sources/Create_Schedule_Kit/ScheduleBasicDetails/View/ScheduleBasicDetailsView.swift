@@ -58,7 +58,6 @@ private extension ScheduleBasicDetailsView {
                 courseField.zIndex(7)
                 moduleField.zIndex(6)
                 if viewModel.isEditMode { categoryFields.zIndex(5) }
-                deliveryField.zIndex(4)
                 if viewModel.showWebinarSection { webinarField.zIndex(3) }
                 if viewModel.showCredentialSection { credentialCard.zIndex(2) }
                 timezoneField.zIndex(1)
@@ -157,22 +156,6 @@ private extension ScheduleBasicDetailsView {
                 CSReadOnlyField(title: "Sub category", value: viewModel.subCategoryText)
                 CSReadOnlyField(title: "Sub sub category", value: viewModel.subSubCategoryText)
             }
-        }
-    }
-
-    var deliveryField: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            CSFieldLabel(title: "Delivery mode", isRequired: true)
-            CSSegmentedControl(
-                options: viewModel.deliveryOptions,
-                title: { $0.displayTitle },
-                icon: { $0 == .online ? "wifi" : "building.2" },
-                isEnabled: !viewModel.isEditMode,
-                selection: Binding(
-                    get: { viewModel.deliveryMode },
-                    set: { viewModel.didSelectDelivery($0) }
-                )
-            )
         }
     }
 

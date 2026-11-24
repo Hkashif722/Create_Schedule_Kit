@@ -28,6 +28,7 @@ final class ScheduleBasicDetailsViewModel: BaseViewModel {
     @Published var modules: [ScheduleBasicDetailsDataModel.ModuleItem] = []
     @Published var selectedModule: ScheduleBasicDetailsDataModel.ModuleItem?
 
+    /// No picker anymore. Comes off the picked module's type (vilt = online) or the draft in edit.
     @Published var deliveryMode: DeliveryMode = .offline
     @Published var webinarType: WebinarType?
     @Published var credentials: [ScheduleBasicDetailsDataModel.Credential]?
@@ -148,8 +149,6 @@ extension ScheduleBasicDetailsViewModel {
     }
 
     var webinarOptions: [WebinarType] { WebinarType.allCases }
-
-    var deliveryOptions: [DeliveryMode] { DeliveryMode.allCases }
 
     // Read-only category rows shown in edit mode (from the locked module).
     var categoryText: String { selectedModule?.category ?? "" }
@@ -272,22 +271,13 @@ extension ScheduleBasicDetailsViewModel {
 
     func didSelectModule(_ module: ScheduleBasicDetailsDataModel.ModuleItem) {
         selectedModule = module
+        // picker's gone so nobody can fix a wrong guess by hand. go off the picked module,
+        // not modules.first, or a vilt module in a mixed course ships as offline
+        deliveryMode = DeliveryMode(moduleType: module.type)
     }
 
     func didSelectTimezone(_ timezone: ScheduleBasicDetailsDataModel.TimezoneItem) {
         selectedTimezone = timezone
-    }
-
-    func didSelectDelivery(_ mode: DeliveryMode) {
-        deliveryMode = mode
-        if mode == .offline {
-            webinarType = nil
-            credentials = nil
-            selectedCredential = nil
-            isCredentialRevealed = false
-            // An offline schedule has no meeting at all.
-            clearTeamsLink()
-        }
     }
 
     func didSelectWebinarType(_ type: WebinarType) {
@@ -540,7 +530,7 @@ extension ScheduleBasicDetailsViewModel {
                 model: ScheduleBasicDetailsDataModel.ModulesByCourseRequest(courseID: courseID)
             )
             modules = results
-            deliveryMode = results.first?.type?.lowercased() == "vilt" ? .online : .offline
+            deliveryMode = DeliveryMode(moduleType: results.first?.type)
             loadingState = .none
             if results.isEmpty {
                 toast = Toast(style: .info, message: "No modules found for this course.")

@@ -37,6 +37,11 @@ enum DeliveryMode: String, CaseIterable {
         case .online:  return "Online"
         }
     }
+
+    /// vilt = online, anything else (classroom, nil, junk) = offline.
+    init(moduleType: String?) {
+        self = moduleType?.lowercased() == "vilt" ? .online : .offline
+    }
 }
 
 enum WebinarType: String, CaseIterable, Identifiable {
