@@ -177,6 +177,8 @@ extension NavigationViewModel {
         let onAddOtherQuiz: () -> Void
         /// Wizard only: runs its Finish (nominate prompt) once the quiz step is done. The editor pops itself first.
         var onFinish: (() -> Void)? = nil
+        /// Quiz was just created for the schedule, so the editor says so once on open.
+        var isJustAdded: Bool = false
     }
 
     // Read-only look at one quiz from Schedule Details: settings, questions, options, right answers.

@@ -45,6 +45,8 @@ final class QuizEditorViewModel: BaseViewModel {
     /// What the last load/save left on the server — the "unsaved changes" baseline.
     private var baseline: DM.SaveQuizPayload?
     private var hasPromptedNextStep = false
+    /// onAppear fires again coming back from pickers/sheets. one toast is enough
+    private var hasAnnouncedAdd = false
 
     init(router: AnyRouter, navModel: NavigationViewModel.QuizEditorNavModel) {
         self.navModel = navModel
@@ -103,6 +105,10 @@ extension QuizEditorViewModel {
 extension QuizEditorViewModel {
 
     func onAppear() {
+        if navModel.isJustAdded, !hasAnnouncedAdd {
+            hasAnnouncedAdd = true
+            toast = Toast(style: .success, message: "Quiz added to schedule successfully.")
+        }
         guard draft == nil, !loadingState.isLoading else { return }
         Task { [weak self] in await self?.load(showsLoader: true) }
     }

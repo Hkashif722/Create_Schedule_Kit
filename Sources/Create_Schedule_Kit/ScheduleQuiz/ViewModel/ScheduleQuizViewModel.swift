@@ -163,7 +163,7 @@ extension ScheduleQuizViewModel {
             guard let self else { return }
             await self.load(showsLoader: false)
             try? await Task.sleep(nanoseconds: self.presentationDelay)
-            self.openEditor(quizID: quizID, kind: kind)
+            self.openEditor(quizID: quizID, kind: kind, isJustAdded: true)
             self.pendingCreate = nil
         }
     }
@@ -184,7 +184,7 @@ extension ScheduleQuizViewModel {
         }
     }
 
-    private func openEditor(quizID: Int, kind: DM.QuizKind) {
+    private func openEditor(quizID: Int, kind: DM.QuizKind, isJustAdded: Bool = false) {
         let navModel = NavigationViewModel.QuizEditorNavModel(
             quizID: quizID,
             kind: kind,
@@ -203,7 +203,8 @@ extension ScheduleQuizViewModel {
                     try? await Task.sleep(nanoseconds: self.presentationDelay)
                     self.didTapFinish()
                 }
-            } : nil
+            } : nil,
+            isJustAdded: isJustAdded
         )
         NavigationService.shared.navigate(using: router, to: AppNavigationDestination.quizEditor(navModel))
     }
