@@ -164,7 +164,7 @@ extension CreateScheduleWizardViewModel {
     }
 
     /// Submit the collected draft — create posts to `ILTSchedule/PostWithMeeting`,
-    /// edit posts the echo-back payload to `ILTSchedule/UpdateILTScheduleWithMeeting`.
+    /// edit posts the echo-back payload to `ILTSchedule/UpdateScheduleWithMeeting`.
     private func finish() {
         Task { [weak self] in
             guard let self else { return }
@@ -309,6 +309,24 @@ extension CreateScheduleWizardViewModel {
         )) ?? []
     }
 
+    /// Web parity: after a Google Meet schedule is updated the web moves the calendar event with
+    /// `UpdateGsuitMeeting`, else the Meet keeps the old slot. Account + event id come from
+    /// `GetGsuitDetailsBySchedule` like the web's edit form; a null `hangoutLink` back = failed.
+    @MainActor
+    private func updateGoogleMeetEvent(update: EditScheduleDataModel.UpdatePayload) async -> Bool {
+        let meet = (try? await ApiService.shared.requestPostHeader(
+            type: JSONValue.self,
+            model: EditScheduleDataModel.GetGsuitDetailsByScheduleRequest(),
+            payload: EditScheduleDataModel.GetGsuitDetailsByScheduleRequest.Payload(id: update.base.id)
+        )) ?? .null
+        guard let result = try? await ApiService.shared.requestPostHeader(
+            type: JSONValue.self,
+            model: EditScheduleDataModel.UpdateGsuitMeetingRequest(),
+            payload: EditScheduleDataModel.GsuitMeetingPayload(update: update, meet: meet)
+        ) else { return false }
+        return !(result.firstString(forKey: "hangoutLink") ?? "").isEmpty
+    }
+
     @MainActor
     private func submitUpdate() async {
         guard let base = editBase else {
@@ -327,6 +345,18 @@ extension CreateScheduleWizardViewModel {
                 loadingState = .none
                 toast = Toast(style: .error, message: response.serverMessage ?? "Could not update schedule.")
                 return
+            }
+            if draft.webinarType == .googleMeet {
+                loadingState = .loading(message: "Updating Google Meet...")
+                guard await updateGoogleMeetEvent(update: payload) else {
+                    // schedule's saved, the event isnt. stay put so Update can be retried (web does the same)
+                    loadingState = .none
+                    toast = Toast(
+                        style: .error,
+                        message: "Schedule updated, but the Google Meet event couldn't be moved. Tap Update Schedule to try again."
+                    )
+                    return
+                }
             }
             loadingState = .none
             if isQuizEnabled, case .edit(let scheduleID) = mode {

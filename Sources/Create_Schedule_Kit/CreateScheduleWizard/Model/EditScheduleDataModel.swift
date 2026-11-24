@@ -4,7 +4,7 @@
 //
 //  Endpoints + DTOs for the edit-schedule flow. The full schedule is fetched via
 //  `ILTSchedule/GetScheduleDetailsByID` and kept as the *base* of the update payload:
-//  `UpdateILTScheduleWithMeeting` expects the fetched object echoed back with the
+//  `UpdateScheduleWithMeeting` expects the fetched object echoed back with the
 //  edited fields overlaid (plus duplicated legacy keys — see `UpdatePayload`).
 //  Fields whose shape the package does not model decode as `JSONValue` and are
 //  echoed back verbatim. Encrypted server fields (trainer email) stay opaque.
@@ -67,7 +67,34 @@ enum EditScheduleDataModel {
     /// same as create — reuse `CreateScheduleWizardDataModel.CreateScheduleResponse`.
     struct UpdateWithMeetingRequest: EndpointModel {
         var path: String {
-            [APIConst.courseBaseUrl, APIConst.versionAPI, APIConst.iltSchedule, APIConst.updateILTScheduleWithMeeting]
+            [APIConst.courseBaseUrl, APIConst.versionAPI, APIConst.iltSchedule, APIConst.updateScheduleWithMeeting]
+                .joined(separator: "/")
+        }
+        var method: HTTPMethod { .post }
+        var headers: [String: String]? { nil }
+    }
+
+    /// POST `{id}` → the schedule's Google Meet row: `username` (the Google account the event
+    /// lives on) and `meetingId` (the calendar event). Web loads this when its edit form opens.
+    struct GetGsuitDetailsByScheduleRequest: EndpointModel {
+        struct Payload: Encodable {
+            let id: Int
+        }
+
+        var path: String {
+            [APIConst.courseBaseUrl, APIConst.versionAPI, APIConst.iltSchedule, APIConst.getGsuitDetailsBySchedule]
+                .joined(separator: "/")
+        }
+        var method: HTTPMethod { .post }
+        var headers: [String: String]? { nil }
+    }
+
+    /// POST `GsuitMeetingPayload` → moves the Google Meet event to the edited dates/times.
+    /// Web fires it right after `UpdateScheduleWithMeeting` succeeds on a Google Meet schedule;
+    /// the schedule update alone leaves the event on its old slot. Answers the meet row back.
+    struct UpdateGsuitMeetingRequest: EndpointModel {
+        var path: String {
+            [APIConst.courseBaseUrl, APIConst.versionAPI, APIConst.iltSchedule, APIConst.updateGsuitMeeting]
                 .joined(separator: "/")
         }
         var method: HTTPMethod { .post }
@@ -176,7 +203,7 @@ enum EditScheduleDataModel {
 
     // MARK: - Update payload
 
-    /// Echo-back body for `UpdateILTScheduleWithMeeting`: the fetched schedule (`base`)
+    /// Echo-back body for `UpdateScheduleWithMeeting`: the fetched schedule (`base`)
     /// re-encoded verbatim, with the wizard-edited fields overlaid from `draft`.
     /// Identity fields (course/module/delivery/webinar) are locked in the UI, so they
     /// always echo the base. The API also expects duplicated legacy keys:
@@ -229,14 +256,14 @@ enum EditScheduleDataModel {
             try c.encode(base.zoomCode, forKey: .zoomCode)
 
             // Dates & times — draft values in the API formats, base as fallback.
-            try c.encode(draft.startDate.map(CreatePayload.isoDate) ?? base.startDate, forKey: .startDate)
-            try c.encode(draft.endDate.map(CreatePayload.isoDate) ?? base.endDate, forKey: .endDate)
+            try c.encode(apiStartDate, forKey: .startDate)
+            try c.encode(apiEndDate, forKey: .endDate)
             try c.encode(draft.registrationEndDate.map(CreatePayload.isoDate) ?? base.registrationEndDate, forKey: .registrationEndDate)
-            try c.encode(draft.startTime.map(CreatePayload.apiTime) ?? base.startTime, forKey: .startTime)
-            try c.encode(draft.endTime.map(CreatePayload.apiTime) ?? base.endTime, forKey: .endTime)
+            try c.encode(apiStartTime, forKey: .startTime)
+            try c.encode(apiEndTime, forKey: .endTime)
             try c.encode(base.startTimeString, forKey: .startTimeString)
             try c.encode(base.endTimeString, forKey: .endTimeString)
-            try c.encode(draft.timezone?.value ?? base.timezone, forKey: .timezone)
+            try c.encode(apiTimezone, forKey: .timezone)
 
             // Venue.
             // An external venue has no academy id, so the base's id must not leak through.
@@ -272,21 +299,7 @@ enum EditScheduleDataModel {
             try c.encode(tags, forKey: .tagList)
             try c.encode(tags, forKey: .Taglist)
 
-            // Holidays — one row per day in the CURRENT range. Editing can change the
-            // dates after hydration, so always normalize through the generator: rows
-            // inside the range keep their markings, stale out-of-range rows drop out.
-            let holidayRows: [HolidayDay] = {
-                guard let start = draft.startDate, let end = draft.endDate else { return draft.holidays }
-                return HolidayDay.generate(start: start, end: end, existing: draft.holidays)
-            }()
-            let holidays = holidayRows.map { row in
-                HolidayItem(
-                    date: CreatePayload.dayString(row.date),
-                    isHoliday: row.isHoliday,
-                    reason: row.isHoliday ? row.label : "Work Day"
-                )
-            }
-            try c.encode(holidays, forKey: .holidayList)
+            try c.encode(holidayItems(), forKey: .holidayList)
             try c.encode(base.topicList ?? .null, forKey: .topicList)
 
             // Coordinator — real values in edit (create sends null here).
@@ -384,6 +397,98 @@ enum EditScheduleDataModel {
                     nameUserId: draft.apiTrainerNameUserId(for: trainer)
                 )
             }
+        }
+    }
+}
+
+// MARK: - Values shared by the update and the Google Meet follow-up
+
+extension EditScheduleDataModel.UpdatePayload {
+    private typealias CreatePayload = CreateScheduleWizardDataModel.Payload
+
+    // draft values in API format, fetched schedule as fallback
+    var apiStartDate: String? { draft.startDate.map(CreatePayload.isoDate) ?? base.startDate }
+    var apiEndDate: String? { draft.endDate.map(CreatePayload.isoDate) ?? base.endDate }
+    var apiStartTime: String? { draft.startTime.map(CreatePayload.apiTime) ?? base.startTime }
+    var apiEndTime: String? { draft.endTime.map(CreatePayload.apiTime) ?? base.endTime }
+    var apiTimezone: String? { draft.timezone?.value ?? base.timezone }
+
+    /// One row per day in the CURRENT range. Editing can move the dates after hydration, so
+    /// always run it through the generator: in-range rows keep their markings, stale ones drop.
+    func holidayItems() -> [EditScheduleDataModel.HolidayItem] {
+        let rows: [HolidayDay] = {
+            guard let start = draft.startDate, let end = draft.endDate else { return draft.holidays }
+            return HolidayDay.generate(start: start, end: end, existing: draft.holidays)
+        }()
+        return rows.map { row in
+            EditScheduleDataModel.HolidayItem(
+                date: CreatePayload.dayString(row.date),
+                isHoliday: row.isHoliday,
+                reason: row.isHoliday ? row.label : "Work Day"
+            )
+        }
+    }
+}
+
+// MARK: - Google Meet follow-up
+
+extension EditScheduleDataModel {
+
+    /// Body for `UpdateGsuitMeeting`, key for key what the web sends — `TrinerData` spelling
+    /// included, that's the server's field name.
+    struct GsuitMeetingPayload: Encodable {
+        struct TrainerEmail: Encodable, Equatable {
+            let emailId: String
+            let emailName: String
+
+            enum CodingKeys: String, CodingKey {
+                case emailId = "EmailId"
+                case emailName = "EmailName"
+            }
+        }
+
+        let scheduleID: Int
+        let username: String?
+        let startDate: String?
+        let endDate: String?
+        let startTime: String?
+        let endTime: String?
+        let courseName: String?
+        let courseID: Int?
+        let eventId: String?
+        let trainers: [TrainerEmail]
+        let holidayList: [HolidayItem]
+        let timezone: String?
+
+        enum CodingKeys: String, CodingKey {
+            case scheduleID = "ScheduleID"
+            case username = "Username"
+            case startDate, endDate, startTime, endTime
+            case courseName = "CourseName"
+            case courseID, eventId
+            case trainers = "TrinerData"
+            case holidayList, timezone
+        }
+
+        /// Same values the schedule update just sent, plus the meet row's account + event id.
+        /// Trainer emails go as-is (server-encrypted), like the web's `emailIds`.
+        init(update: UpdatePayload, meet: JSONValue) {
+            let base = update.base
+            scheduleID = base.id
+            username = meet.firstString(forKey: "username") ?? base.webinarAccount
+            startDate = update.apiStartDate
+            endDate = update.apiEndDate
+            startTime = update.apiStartTime
+            endTime = update.apiEndTime
+            courseName = base.courseName
+            courseID = base.courseID
+            eventId = meet.firstString(forKey: "meetingId")
+                ?? base.googleMeetDetails?.firstString(forKey: "meetingId")
+            trainers = update.draft.trainers.map {
+                TrainerEmail(emailId: $0.emailId ?? "", emailName: $0.name)
+            }
+            holidayList = update.holidayItems()
+            timezone = update.apiTimezone
         }
     }
 }

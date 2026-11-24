@@ -3,7 +3,7 @@ import Foundation
 import SwiftUIUtilities
 @testable import Create_Schedule_Kit
 
-/// Encoding tests for the `ILTSchedule/UpdateILTScheduleWithMeeting` echo-back body:
+/// Encoding tests for the `ILTSchedule/UpdateScheduleWithMeeting` echo-back body:
 /// fetched base fields survive verbatim, draft edits overlay them, and the duplicated
 /// legacy keys (`moduleId`/`moduleID`, `trainerList`/`TrainerList`, `tagList`/`Taglist`,
 /// `agencyTrainerName`/`AgencyTrainerName`) are all present.
@@ -439,5 +439,97 @@ import SwiftUIUtilities
         let rows = try #require(object["teamsScheduleDetails"] as? [[String: Any]])
 
         #expect(rows.first?["joinUrl"] as? String == "Https://team.com")
+    }
+
+    // MARK: Google Meet follow-up (UpdateGsuitMeeting)
+
+    private func encodeAny<T: Encodable>(_ value: T) throws -> [String: Any] {
+        let data = try JSONEncoder().encode(value)
+        return try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+
+    private func meetRow(username: String? = "meet@croma.com", meetingId: String? = "evt-123") -> JSONValue {
+        var fields: [String: JSONValue] = ["hangoutLink": .string("https://meet.google.com/abc")]
+        if let username { fields["username"] = .string(username) }
+        if let meetingId { fields["meetingId"] = .string(meetingId) }
+        return .object(fields)
+    }
+
+    // exact key set the web's googleMeets model posts, typo'd TrinerData included
+    @Test func gsuitBodyUsesTheWebKeys() throws {
+        let details = try base()
+        let update = EditScheduleDataModel.UpdatePayload(base: details, draft: hydratedDraft(from: details))
+
+        let body = try encodeAny(EditScheduleDataModel.GsuitMeetingPayload(update: update, meet: meetRow()))
+
+        #expect(Set(body.keys) == [
+            "ScheduleID", "Username", "startDate", "endDate", "startTime", "endTime",
+            "CourseName", "courseID", "eventId", "TrinerData", "holidayList", "timezone"
+        ])
+    }
+
+    // the event has to land on the same slot the schedule update just saved
+    @Test func gsuitBodyMatchesTheUpdateItFollows() throws {
+        let details = try base()
+        let draft = hydratedDraft(from: details)
+        draft.startTime = "10:00"
+        draft.endTime = "11:30"
+        let update = EditScheduleDataModel.UpdatePayload(base: details, draft: draft)
+
+        let body = try encodeAny(EditScheduleDataModel.GsuitMeetingPayload(update: update, meet: meetRow()))
+        let sent = try encodeToObject(update)
+
+        #expect(body["ScheduleID"] as? Int == 3892)
+        #expect(body["Username"] as? String == "meet@croma.com")
+        #expect(body["eventId"] as? String == "evt-123")
+        #expect(body["CourseName"] as? String == "Schedule Creation")
+        #expect(body["courseID"] as? Int == 57812)
+        #expect(body["startTime"] as? String == "10:00")
+        #expect(body["endTime"] as? String == "11:30")
+        #expect(body["startDate"] as? String == sent["startDate"] as? String)
+        #expect(body["endDate"] as? String == sent["endDate"] as? String)
+        #expect(body["timezone"] as? String == "India Standard Time")
+        #expect((body["holidayList"] as? [[String: Any]])?.count == (sent["holidayList"] as? [[String: Any]])?.count)
+    }
+
+    // web passes the server's encrypted trainerEmail straight through
+    @Test func gsuitTrainersCarryTheEncryptedEmail() throws {
+        let details = try base()
+        let update = EditScheduleDataModel.UpdatePayload(base: details, draft: hydratedDraft(from: details))
+
+        let body = try encodeAny(EditScheduleDataModel.GsuitMeetingPayload(update: update, meet: meetRow()))
+        let trainers = try #require(body["TrinerData"] as? [[String: Any]])
+
+        #expect(trainers.count == 1)
+        #expect(trainers.first?["EmailId"] as? String == "kodV1wwpC1fAiTRuK2jifcKuE9h5S1AXqBAr2D1V05o=")
+        #expect(trainers.first?["EmailName"] as? String == "kashif")
+    }
+
+    // meet lookup came back empty: fall back to what the details call carried
+    @Test func gsuitFallsBackToTheFetchedSchedule() throws {
+        let json = EditScheduleFixtures.detailsJSON
+            .replacingOccurrences(of: "\"googleMeetDetails\": null", with: "\"googleMeetDetails\": {\"meetingId\": \"evt-from-details\"}")
+            .replacingOccurrences(of: "\"webinarAccount\": null", with: "\"webinarAccount\": \"acct@croma.com\"")
+        let details = try JSONDecoder().decode(EditScheduleDataModel.ScheduleDetailsResponse.self, from: Data(json.utf8))
+        let update = EditScheduleDataModel.UpdatePayload(base: details, draft: hydratedDraft(from: details))
+
+        let payload = EditScheduleDataModel.GsuitMeetingPayload(update: update, meet: .null)
+
+        #expect(payload.eventId == "evt-from-details")
+        #expect(payload.username == details.webinarAccount)
+    }
+
+    @Test func gsuitRequestsHitTheWebRoutes() {
+        #expect(EditScheduleDataModel.GetGsuitDetailsByScheduleRequest().path.hasSuffix("/ILTSchedule/GetGsuitDetailsBySchedule"))
+        #expect(EditScheduleDataModel.UpdateGsuitMeetingRequest().path.hasSuffix("/ILTSchedule/UpdateGsuitMeeting"))
+    }
+
+    // prod 400'd every edit: kit posted to UpdateILTScheduleWithMeeting, which isnt a route.
+    // web posts to UpdateScheduleWithMeeting (checked live on croma prod, 200)
+    @Test func updatePostsToTheRouteTheWebUses() {
+        let path = EditScheduleDataModel.UpdateWithMeetingRequest().path
+
+        #expect(path.hasSuffix("/ILTSchedule/UpdateScheduleWithMeeting"))
+        #expect(!path.contains("UpdateILTScheduleWithMeeting"))
     }
 }

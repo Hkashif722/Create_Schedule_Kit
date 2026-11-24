@@ -36,7 +36,12 @@ internal struct APIConst {
     static let count = "count"
     static let getScheduleDetailsByID = "GetScheduleDetailsByID"
     static let getTeamsMeetingByScheduleCode = "GetTeamsMeetingByScheduleCode"
-    static let updateILTScheduleWithMeeting = "UpdateILTScheduleWithMeeting"
+    // what the prod web posts edits to. "UpdateILTScheduleWithMeeting" isnt a route there,
+    // falls into ILTSchedule/{Id} and 400s with "The value ... is not valid"
+    static let updateScheduleWithMeeting = "UpdateScheduleWithMeeting"
+    // google meet follow-up after an edit, same pair the web uses
+    static let getGsuitDetailsBySchedule = "GetGsuitDetailsBySchedule"
+    static let updateGsuitMeeting = "UpdateGsuitMeeting"
     static let cancellationSchedule = "CancellationSchedule"
     static let getNominationCountDetails = "GetNominationCountDetails"
 
