@@ -27,7 +27,9 @@ struct QuizPreviewSummaryCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityAddTraits(.isHeader)
-                CSStatusChip(title: isPublished ? "Published" : "Draft", tint: isPublished ? .green : .orange)
+                if isPublished {
+                    CSStatusChip(title: "Published", tint: .green)
+                }
             }
             if let instructions {
                 Text(instructions)

@@ -25,7 +25,7 @@ struct CSQuizKindBadge: View {
     }
 }
 
-/// Small rounded status chip ("Draft", "Published", "Locked").
+/// Small rounded status chip ("Published", "Locked").
 struct CSStatusChip: View {
     let title: String
     var systemImage: String? = nil
@@ -66,7 +66,7 @@ struct CSQuestionNumberBadge: View {
         CSQuestionNumberBadge(number: 3)
         CSQuizKindBadge(kind: .pre)
         CSQuizKindBadge(kind: .post)
-        CSStatusChip(title: "Draft", tint: .orange)
+        CSStatusChip(title: "Published", tint: .green)
         CSStatusChip(title: "Locked", systemImage: "lock.fill", tint: .gray)
     }
     .padding()

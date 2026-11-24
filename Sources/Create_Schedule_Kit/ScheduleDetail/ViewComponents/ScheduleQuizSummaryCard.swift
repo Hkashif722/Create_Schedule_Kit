@@ -59,10 +59,9 @@ struct ScheduleQuizSummaryCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             if let quiz {
-                CSStatusChip(
-                    title: quiz.isPublished ? "Published" : "Draft",
-                    tint: quiz.isPublished ? .green : .orange
-                )
+                if quiz.isPublished {
+                    CSStatusChip(title: "Published", tint: .green)
+                }
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(Color(.tertiaryLabel))

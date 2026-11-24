@@ -72,19 +72,21 @@ struct QuizSlotCardView: View {
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(.primary)
                     .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 6) {
-                    if quiz.isPublished {
-                        CSStatusChip(title: "Published", tint: .green)
-                    } else {
-                        CSStatusChip(title: "Draft", tint: .orange)
-                    }
-                    if quiz.isLocked {
-                        CSStatusChip(title: "Locked", systemImage: "lock.fill", tint: .gray)
-                    }
-                    if quiz.attemptCount > 0 {
-                        Text(quiz.attemptCount == 1 ? "1 attempt" : "\(quiz.attemptCount) attempts")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
+                // no Draft chip: there's no draft flow, unpublished just means no questions saved yet.
+                // skip the whole row when it'd be empty, else the 6pt stack gap hangs under the title
+                if quiz.isPublished || quiz.isLocked || quiz.attemptCount > 0 {
+                    HStack(spacing: 6) {
+                        if quiz.isPublished {
+                            CSStatusChip(title: "Published", tint: .green)
+                        }
+                        if quiz.isLocked {
+                            CSStatusChip(title: "Locked", systemImage: "lock.fill", tint: .gray)
+                        }
+                        if quiz.attemptCount > 0 {
+                            Text(quiz.attemptCount == 1 ? "1 attempt" : "\(quiz.attemptCount) attempts")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
             }

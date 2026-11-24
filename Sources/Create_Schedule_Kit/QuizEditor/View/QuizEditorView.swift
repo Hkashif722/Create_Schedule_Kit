@@ -92,12 +92,9 @@ private extension QuizEditorView {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 CSQuizKindBadge(kind: viewModel.kind)
-                if viewModel.summary != nil {
-                    if viewModel.isPublished {
-                        CSStatusChip(title: "Published", tint: .green)
-                    } else {
-                        CSStatusChip(title: "Draft", tint: .orange)
-                    }
+                // Published only. no Draft chip, see QuizSlotCardView
+                if viewModel.isPublished {
+                    CSStatusChip(title: "Published", tint: .green)
                 }
                 if viewModel.isLocked {
                     CSStatusChip(title: "Locked", systemImage: "lock.fill", tint: .gray)
